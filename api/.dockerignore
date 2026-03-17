@@ -1,0 +1,92 @@
+# PyCharm IDE 相关文件
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# uv 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# Python 缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Python 构建产物
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# 测试相关
+tests/
+pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# 开发脚本
+dev.sh
+
+# 临时文件
+tmp/
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# Git 相关
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# 环境变量文件（生产环境由 docker-compose env_file 注入）
+.env
+.env.local
+.env.*.local
+
+# 操作系统相关
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 编辑器相关
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# 文档（可选，如果不需要在容器中保留）
+# README.md
+
+# uv 锁文件（生产环境使用 requirements.txt）
+uv.lock
+
+# 其他开发工具
+.python-version
+.pip/
+pip-log.txt
+pip-delete-this-directory.txt
+
+
+
+

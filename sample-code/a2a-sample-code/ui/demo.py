@@ -1,3 +1,0 @@
-from google.adk.tools.openapi_tool.auth.credential_exchangers import AutoAuthCredentialExchanger
-
-print(AutoAuthCredentialExchanger)

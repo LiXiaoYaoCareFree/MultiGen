@@ -1,0 +1,152 @@
+---
+alwaysApply: true
+---
+
+# 项目开发规范
+
+## 技术栈
+- **框架**: Next.js 16.1.6 (App Router)
+- **语言**: TypeScript 5 (strict mode)
+- **UI**: React 19.2.3
+- **样式**: Tailwind CSS 4
+- **组件库**: shadcn/ui (new-york style) + Radix UI
+- **图标**: Lucide React
+
+## 代码规范
+
+### TypeScript
+- 使用严格模式 (`strict: true`)
+- 优先使用 `type` 而非 `interface`（除非需要扩展）
+- 组件 props 使用 `Readonly<{}>` 或 `React.ComponentProps<"element">`
+- 避免使用 `any`，使用 `unknown` 或具体类型
+- 使用路径别名 `@/*` 指向 `./src/*`
+
+### React/Next.js
+- 使用函数式组件和 React Hooks
+- 服务端组件优先，仅在需要时使用 `"use client"`
+- 组件文件使用 PascalCase，如 `chat-message.tsx`
+- 导出组件使用命名导出：`export { Component }`
+- 使用 Next.js App Router 约定（`page.tsx`, `layout.tsx`）
+
+### 组件开发
+- UI 组件放在 `@/components/ui/`
+- 业务组件放在 `@/components/`
+- 使用 `cn()` 工具函数合并 Tailwind 类名
+- 使用 `class-variance-authority` (CVA) 定义组件变体
+- Radix UI 组件使用 `asChild` 模式支持组合
+- 只使用 `shadcn` 库的组件，组件被安装在 `@/components/ui/` 下，如果没有请安装
+
+### 样式规范
+- 使用 Tailwind CSS 工具类
+- 使用 `cn()` 合并类名：`cn(baseClasses, conditionalClasses)`
+- 支持暗色模式（使用 `dark:` 前缀）
+- 使用 CSS 变量（通过 `globals.css` 定义）
+
+### 文件组织
+- 页面：`src/app/**/page.tsx`
+- 布局：`src/app/**/layout.tsx`
+- 组件：`src/components/**/*.tsx`
+- 工具函数：`src/lib/**/*.ts`
+- Hooks：`src/hooks/**/*.ts`
+- UI 设计稿：`docs/design/`（仅存放导出的参考图，不提交大体积源文件）
+
+### 代码质量
+- 遵循 ESLint 规则（Next.js core-web-vitals + TypeScript）
+- 保持组件简洁，单一职责
+- 使用有意义的变量和函数名
+- 添加必要的类型注解
+- 避免不必要的注释，代码应自解释
+
+### 导入顺序
+1. React/Next.js 核心
+2. 第三方库
+3. 内部组件 (`@/components`)
+4. 工具函数 (`@/lib`, `@/hooks`)
+5. 类型定义
+6. 样式文件
+
+### 性能优化
+- 使用 Next.js 自动代码分割
+- 大组件使用动态导入 `dynamic()`
+- 图片使用 `next/image`
+- 避免不必要的客户端组件
+
+### UI 设计稿
+- 存放路径：`docs/design/`，按页面/功能模块分子目录
+- 仅提交轻量参考图（PNG/JPG），大体积源文件（Figma/Sketch/PSD）通过在线链接引用
+- 开发组件时应参考 `docs/design/` 中的设计稿还原 UI
+
+## 后端接口规范
+
+- **Base URL**: `http://localhost:8000/api`
+- **OpenAPI 文档**: `http://localhost:8000/openapi.json`
+- **统一响应格式**: `{ code: number, msg: string, data: T | null }`
+
+### 状态模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/status` | 系统健康检查（postgres/redis/fastapi） |
+
+### 设置模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/app-config/llm` | 获取 LLM 配置 |
+| POST | `/app-config/llm` | 更新 LLM 配置 |
+| GET | `/app-config/agent` | 获取 Agent 通用配置 |
+| POST | `/app-config/agent` | 更新 Agent 通用配置 |
+| GET | `/app-config/mcp-servers` | 获取 MCP 服务器列表 |
+| POST | `/app-config/mcp-servers` | 新增 MCP 服务配置 |
+| POST | `/app-config/mcp-servers/{server_name}/delete` | 删除 MCP 服务 |
+| POST | `/app-config/mcp-servers/{server_name}/enabled` | 更新 MCP 启用状态 |
+| GET | `/app-config/a2a-servers` | 获取 A2A 服务器列表 |
+| POST | `/app-config/a2a-servers` | 新增 A2A 服务器 |
+| POST | `/app-config/a2a-servers/{a2a_id}/delete` | 删除 A2A 服务 |
+| POST | `/app-config/a2a-servers/{a2a_id}/enabled` | 更新 A2A 启用状态 |
+
+### 文件模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/files` | 上传文件（multipart/form-data） |
+| GET | `/files/{file_id}` | 获取文件信息 |
+| GET | `/files/{file_id}/download` | 下载文件 |
+
+### 会话模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/sessions` | 获取会话列表 |
+| POST | `/sessions` | 创建新会话 |
+| POST | `/sessions/stream` | 流式获取会话列表（SSE） |
+| GET | `/sessions/{session_id}` | 获取会话详情 |
+| POST | `/sessions/{session_id}/chat` | 发起聊天请求（SSE） |
+| POST | `/sessions/{session_id}/stop` | 停止会话 |
+| POST | `/sessions/{session_id}/delete` | 删除会话 |
+| POST | `/sessions/{session_id}/clear-unread-message-count` | 清除未读消息数 |
+| GET | `/sessions/{session_id}/files` | 获取会话文件列表 |
+| POST | `/sessions/{session_id}/file` | 查看沙箱文件内容 |
+| POST | `/sessions/{session_id}/shell` | 查看 Shell 输出 |
+
+### SSE 事件类型
+
+聊天接口 (`/chat`) 返回以下 SSE 事件：
+
+| 事件 | 说明 |
+|------|------|
+| `message` | 消息事件（含 role/message/attachments） |
+| `title` | 会话标题更新 |
+| `plan` | 计划事件（含 steps 列表） |
+| `step` | 步骤事件（含 id/status/description） |
+| `tool` | 工具调用事件（含 name/function/args/content） |
+| `wait` | 等待用户输入 |
+| `done` | 流结束 |
+| `error` | 错误事件 |
+
+### 关键枚举值
+
+- **SessionStatus**: `pending` | `running` | `waiting` | `completed`
+- **ExecutionStatus**: `pending` | `running` | `completed` | `failed`
+- **ToolEventStatus**: `calling` | `called`
+- **MCPTransport**: `stdio` | `sse` | `streamable_http`

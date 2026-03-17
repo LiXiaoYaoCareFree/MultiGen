@@ -1,0 +1,134 @@
+services:
+  # ==================== 基础设施 ====================
+
+  manus-redis:
+    image: redis:7-alpine
+    container_name: manus-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - manus-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  manus-postgres:
+    image: postgres:16-alpine
+    container_name: manus-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-manus}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - manus-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-manus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== 沙箱服务 ====================
+
+  manus-sandbox:
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+    image: manus-sandbox
+    container_name: manus-sandbox
+    restart: "no"
+    networks:
+      - manus-network
+
+  # ==================== 后端 API ====================
+
+  manus-api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: manus-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    # 如需动态创建沙箱容器，取消以下注释以挂载 Docker Socket
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./logs:/app/logs
+    depends_on:
+      manus-redis:
+        condition: service_healthy
+      manus-postgres:
+        condition: service_healthy
+    networks:
+      - manus-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/status"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ==================== 前端 UI ====================
+
+  manus-ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: /api
+    container_name: manus-ui
+    restart: unless-stopped
+    depends_on:
+      manus-api:
+        condition: service_healthy
+    networks:
+      - manus-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ==================== Nginx 网关 ====================
+
+  manus-nginx:
+    image: nginx:alpine
+    container_name: manus-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_PORT:-8088}:80"
+      # 如需启用 HTTPS，取消以下注释
+      # - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      # SSL 证书挂载（如需启用 HTTPS，取消以下注释）
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - manus-ui
+      - manus-api
+    networks:
+      - manus-network
+
+# ==================== 数据卷 ====================
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+
+# ==================== 网络 ====================
+networks:
+  manus-network:
+    name: manus-network
+    driver: bridge

@@ -1,0 +1,17 @@
+services:
+  mooc_manus_sandbox_dev:
+    # 容器服务构建来源
+    build:
+      context: ../
+      dockerfile: .devops/Dockerfile
+    # 将当前目录挂载到工作空间/sandbox
+    volumes:
+      - ../:/sandbox
+    # 端口映射
+    ports:
+      - "2222:22" # 本地2222->容器SSH 22
+      - "8080:8080" # 本地8080->容器Sandbox 8080
+    # 容器的名字
+    container_name: mooc_manus_sandbox_dev
+    # 碰到错误则自动重启
+    restart: always
