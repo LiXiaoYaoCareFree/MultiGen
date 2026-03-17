@@ -4,7 +4,7 @@ from typing import Dict, Any, List, Callable
 from app.domain.models.tool_result import ToolResult
 
 """
-MoocManus工具设计思路:
+MultiGen工具设计思路:
 1.所有工具都必须继承一个BaseTool基类，拥有统一的invoke方法用于调用该类下的对应工具;
 2.定义一个装饰器，被该装饰器装饰的方法会填充_tool_name、_tool_description、_tool_schema属性;
 3.工具类可以通过get_tools快速获取基于缓存的schema参数信息，这样LLM就可以便捷调用;

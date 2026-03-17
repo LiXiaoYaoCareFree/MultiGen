@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     setup_logging()
 
     # 1.日志打印代码已经开始执行了
-    logger.info("MoocManus正在初始化")
+    logger.info("MultiGen正在初始化")
 
     # 2.运行数据库迁移(将数据同步到生产环境)
     alembic_cfg = Config("alembic.ini")
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     finally:
         try:
             # 5.等待agent服务关闭
-            logger.info("MoocManus正在关闭")
+            logger.info("MultiGen正在关闭")
             await asyncio.wait_for(get_agent_service().shutdown(), timeout=30.0)
             logger.info("Agent服务成功关闭")
         except asyncio.TimeoutError:
@@ -69,13 +69,13 @@ async def lifespan(app: FastAPI):
         await get_postgres().shutdown()
         await get_cos().shutdown()
 
-        logger.info("Manus应用关闭成功")
+        logger.info("MultiGen应用关闭成功")
 
 
-# 4.创建MoocManus应用实例
+# 4.创建MultiGen应用实例
 app = FastAPI(
-    title="MoocManus通用智能体",
-    description="MoocManus是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
+    title="MultiGen通用智能体",
+    description="MultiGen是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
     version="1.0.0",

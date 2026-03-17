@@ -1,4 +1,4 @@
-# MoocManus API 服务
+# MultiGen API 服务
 
 基于 FastAPI 构建的后端 API 服务，提供会话管理、AI Agent 调度、文件处理、沙箱管理等核心功能。
 

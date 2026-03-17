@@ -44,14 +44,14 @@ def setup_logging() -> None:
 async def lifespan(app: FastAPI):
     """FastAPI生命周期上下文管理器"""
     # 1.应用开始运行之前的操作
-    logger.info("MoocManus沙箱正在初始化")
+    logger.info("MultiGen沙箱正在初始化")
 
     try:
         # 2.lifespan关键节点
         yield
     finally:
         # 3.应用结束后的操作
-        logger.info("MoocManus沙箱关闭成功")
+        logger.info("MultiGen沙箱关闭成功")
 
 
 # 1.初始化日志系统
@@ -76,7 +76,7 @@ openapi_tags = [
 
 # 3.实例化FastAPI项目实例
 app = FastAPI(
-    title="MoocManus沙箱系统",
+    title="MultiGen沙箱系统",
     description="该沙箱系统中预装了Chrome、Python、Node.js，支持运行 Shell 命令、文件管理等功能",
     openapi_tags=openapi_tags,
     lifespan=lifespan,

@@ -93,12 +93,12 @@ async def stream_sessions(
     path="",
     response_model=Response[ListSessionResponse],
     summary="获取会话列表基础信息",
-    description="获取MoocManus项目中所有任务会话基础信息列表",
+    description="获取MultiGen项目中所有任务会话基础信息列表",
 )
 async def get_all_sessions(
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[ListSessionResponse]:
-    """获取MoocManus项目中所有任务会话基础信息列表"""
+    """获取MultiGen项目中所有任务会话基础信息列表"""
     sessions = await session_service.get_all_sessions()
     session_items = [
         ListSessionItem(

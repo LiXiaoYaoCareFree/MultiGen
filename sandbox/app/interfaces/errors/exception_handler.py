@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppException)
     async def app_exception_handler(req: Request, e: AppException) -> JSONResponse:
-        """处理MoocManus沙箱自定义业务异常，将所有状态统一响应结构"""
+        """处理MultiGen沙箱自定义业务异常，将所有状态统一响应结构"""
         logger.error(f"AppException: {e.msg}")
         return JSONResponse(
             status_code=e.status_code,
@@ -39,7 +39,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def exception_handler(req: Request, e: Exception) -> JSONResponse:
-        """处理MoocManus沙箱服务中抛出的任意未定义异常，将所有状态码统一响应结构"""
+        """处理MultiGen沙箱服务中抛出的任意未定义异常，将所有状态码统一响应结构"""
         logger.error(f"Exception: {str(e)}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
