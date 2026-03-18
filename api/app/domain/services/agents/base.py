@@ -141,6 +141,22 @@ class BaseAgent(ABC):
         # 2.循环最大重试次数后没有结果则将错误作为工具的执行结果，让LLM自行处理
         return ToolResult(success=False, message=err)
 
+    @staticmethod
+    def _normalize_function_args(function_name: str, function_args: Any) -> Dict[str, Any]:
+        if isinstance(function_args, dict):
+            return function_args
+        if isinstance(function_args, list):
+            for item in function_args:
+                if isinstance(item, dict):
+                    logger.warning(
+                        f"工具[{function_name}]参数解析为list，已回退使用其中首个dict参数: {item}"
+                    )
+                    return item
+        logger.warning(
+            f"工具[{function_name}]参数解析异常，期望dict但实际为{type(function_args).__name__}，回退为空字典"
+        )
+        return {}
+
     async def _add_to_memory(self, messages: List[Dict[str, Any]]) -> None:
         """将对应的信息添加到记忆中"""
         # 1.先检查确保记忆是存在的
@@ -227,7 +243,8 @@ class BaseAgent(ABC):
                 # 6.取出调用工具id、名字、参数信息
                 tool_call_id = tool_call["id"] or str(uuid.uuid4())
                 function_name = tool_call["function"]["name"]
-                function_args = await self._json_parser.invoke(tool_call["function"]["arguments"])
+                function_args_raw = await self._json_parser.invoke(tool_call["function"]["arguments"])
+                function_args = self._normalize_function_args(function_name, function_args_raw)
 
                 # 7.取出Agent中对应的工具
                 tool = self._get_tool(function_name)
