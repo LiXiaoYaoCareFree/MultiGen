@@ -6,6 +6,7 @@ import { getToolKind, getFriendlyToolLabel, getArg } from '@/components/tool-use
 import type { ToolKind } from '@/components/tool-use/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
+import { resolveStorageUrl } from '@/lib/api/file'
 import {
   Maximize2,
   Monitor,
@@ -44,6 +45,66 @@ function getToolContent(tool: ToolEvent): Record<string, unknown> | null {
   return null
 }
 
+function getCompactToolContent(tool: ToolEvent): unknown {
+  const multimodalToolNames = new Set([
+    'image_generation',
+    'volcano_image',
+    'volcano_video',
+    'video_concatenation',
+    'model_3d',
+    'virtual_anchor',
+    'qwen_tts',
+    'audio_mixing',
+  ])
+  if (!multimodalToolNames.has(tool.name)) return tool.content
+  if (!tool.content || typeof tool.content !== 'object' || Array.isArray(tool.content)) return tool.content
+  const root = tool.content as Record<string, unknown>
+  const result = root.result
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const success = (result as Record<string, unknown>).success
+    if (typeof success === 'boolean') {
+      return { success }
+    }
+  }
+  const success = root.success
+  if (typeof success === 'boolean') {
+    return { success }
+  }
+  return tool.content
+}
+
+function collectStorageUrls(value: unknown): string[] {
+  const out = new Set<string>()
+  const walk = (v: unknown) => {
+    if (!v) return
+    if (typeof v === 'string') {
+      if (v.startsWith('/storage/') || v.startsWith('http://') || v.startsWith('https://')) {
+        const resolved = resolveStorageUrl(v)
+        if (resolved.includes('/storage/')) out.add(resolved)
+      }
+      return
+    }
+    if (Array.isArray(v)) {
+      v.forEach(walk)
+      return
+    }
+    if (typeof v === 'object') {
+      Object.values(v as Record<string, unknown>).forEach(walk)
+    }
+  }
+  walk(value)
+  return [...out]
+}
+
+function fileKindFromUrl(url: string): 'image' | 'video' | 'audio' | 'model' | 'other' {
+  const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase()
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image'
+  if (['mp4', 'mov', 'webm', 'mkv', 'm4v', 'avi'].includes(ext)) return 'video'
+  if (['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'opus'].includes(ext)) return 'audio'
+  if (['glb', 'gltf', 'obj', 'stl', 'fbx', 'ply', 'usdz'].includes(ext)) return 'model'
+  return 'other'
+}
+
 function getToolDescription(kind: ToolKind): string {
   const map: Record<ToolKind, string> = {
     bash: '终端',
@@ -58,18 +119,15 @@ function getToolDescription(kind: ToolKind): string {
   return map[kind]
 }
 
-function getToolIcon(kind: ToolKind) {
-  const map: Record<ToolKind, typeof Terminal> = {
-    bash: Terminal,
-    browser: Globe,
-    search: Search,
-    file: FileSearch,
-    mcp: Wrench,
-    a2a: Bot,
-    message: Monitor,
-    default: Monitor,
-  }
-  return map[kind]
+const TOOL_ICON_MAP: Record<ToolKind, typeof Terminal> = {
+  bash: Terminal,
+  browser: Globe,
+  search: Search,
+  file: FileSearch,
+  mcp: Wrench,
+  a2a: Bot,
+  message: Monitor,
+  default: Monitor,
 }
 
 /* ------------------------------------------------------------------ */
@@ -310,6 +368,8 @@ function A2APreview({ tool }: { tool: ToolEvent }) {
 }
 
 function DefaultPreview({ tool }: { tool: ToolEvent }) {
+  const urls = collectStorageUrls(tool.content)
+  const compactContent = getCompactToolContent(tool)
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
@@ -320,8 +380,32 @@ function DefaultPreview({ tool }: { tool: ToolEvent }) {
         {tool.content != null && (
           <div className="rounded-lg border border-gray-700 bg-[#1e1e1e] p-4">
             <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap break-words">
-              {typeof tool.content === 'string' ? tool.content : JSON.stringify(tool.content, null, 2)}
+              {typeof compactContent === 'string' ? compactContent : JSON.stringify(compactContent, null, 2)}
             </pre>
+          </div>
+        )}
+        {urls.length > 0 && (
+          <div className="rounded-lg border p-3 bg-white flex flex-col gap-3">
+            {urls.map((url, idx) => {
+              const kind = fileKindFromUrl(url)
+              if (kind === 'image') {
+                return <img key={idx} src={url} alt={url} className="max-w-full h-auto rounded border" />
+              }
+              if (kind === 'video') {
+                return <video key={idx} src={url} controls className="w-full rounded border bg-black" />
+              }
+              if (kind === 'audio') {
+                return <audio key={idx} src={url} controls className="w-full" />
+              }
+              if (kind === 'model') {
+                return <iframe key={idx} src={`https://modelviewer.dev/editor/#model=${encodeURIComponent(url)}`} className="w-full h-96 rounded border" title={`model-${idx}`} />
+              }
+              return (
+                <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+                  {url}
+                </a>
+              )
+            })}
           </div>
         )}
       </div>
@@ -341,7 +425,7 @@ export function ToolPreviewPanel({
 }: ToolPreviewPanelProps) {
   const kind = getToolKind(tool)
   const label = getFriendlyToolLabel(tool)
-  const ToolIcon = getToolIcon(kind)
+  const ToolIcon = TOOL_ICON_MAP[kind] || Monitor
   const toolDesc = getToolDescription(kind)
 
   return (

@@ -15,12 +15,20 @@ from app.domain.models.session import SessionStatus
 from app.domain.services.agents.planner import PlannerAgent
 from app.domain.services.agents.react import ReActAgent
 from app.domain.services.tools.a2a import A2ATool
+from app.domain.services.tools.audio_mixing import AudioMixingTool
 from app.domain.services.tools.browser import BrowserTool
 from app.domain.services.tools.file import FileTool
+from app.domain.services.tools.image_generation import ImageGenerationTool
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.message import MessageTool
+from app.domain.services.tools.model_3d_generation import Model3DGenerationTool
+from app.domain.services.tools.qwen_tts import QwenTTSTool
 from app.domain.services.tools.search import SearchTool
 from app.domain.services.tools.shell import ShellTool
+from app.domain.services.tools.video_concatenation import VideoConcatenationTool
+from app.domain.services.tools.virtual_anchor_generation import VirtualAnchorGenerationTool
+from app.domain.services.tools.volcano_image_generation import VolcanoImageGenerationTool
+from app.domain.services.tools.volcano_video_generation import VolcanoVideoGenerationTool
 from .base import BaseFlow, FlowStatus
 from ...repositories.uow import IUnitOfWork
 
@@ -58,6 +66,14 @@ class PlannerReActFlow(BaseFlow):
             BrowserTool(browser=browser),
             SearchTool(search_engine=search_engine),
             MessageTool(),
+            ImageGenerationTool(),
+            VolcanoImageGenerationTool(),
+            Model3DGenerationTool(),
+            VolcanoVideoGenerationTool(),
+            VideoConcatenationTool(),
+            VirtualAnchorGenerationTool(),
+            QwenTTSTool(),
+            AudioMixingTool(),
             mcp_tool,
             a2a_tool,
         ]

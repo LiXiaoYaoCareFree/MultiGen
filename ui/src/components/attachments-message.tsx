@@ -4,6 +4,7 @@ import { cn, formatFileSize } from '@/lib/utils'
 import { FileSearch, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { AttachmentFile } from '@/lib/session-events'
+import { fileApi } from '@/lib/api'
 
 export interface AttachmentsMessageProps {
   className?: string
@@ -15,27 +16,33 @@ export interface AttachmentsMessageProps {
 
 const CARD_WIDTH = 280
 const CARD_HEIGHT = 72
+const PREVIEW_CARD_HEIGHT = 232
+
+function isImageFile(extension: string): boolean {
+  const ext = extension.replace(/^\./, '').toLowerCase()
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
+}
 
 function FileCard({
   file,
-  index,
   sizeLabel,
   role,
   onClick,
 }: {
   file: AttachmentFile
-  index: number
   sizeLabel: string
   role: 'user' | 'assistant'
   onClick?: () => void
 }) {
+  const imagePreview = role === 'assistant' && isImageFile(file.extension)
+  const imageUrl = imagePreview ? fileApi.getFileDownloadUrl(file.id) : null
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 flex-shrink-0 cursor-pointer hover:bg-gray-50 transition-colors',
+        'rounded-lg border border-gray-200 bg-white flex-shrink-0 cursor-pointer hover:bg-gray-50 transition-colors overflow-hidden',
         role === 'user' && 'bg-white'
       )}
-      style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+      style={{ width: CARD_WIDTH, height: imagePreview ? PREVIEW_CARD_HEIGHT : CARD_HEIGHT }}
       role="button"
       tabIndex={0}
       onClick={onClick}
@@ -46,16 +53,22 @@ function FileCard({
         }
       }}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
-        <FileText size={18} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">
-          {file.filename}
-        </p>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {file.extension} · {sizeLabel}
-        </p>
+      <div className={cn('flex items-center gap-3 p-3', imagePreview && 'flex-col items-start gap-2 p-0')}>
+        {imagePreview && imageUrl ? (
+          <img src={imageUrl} alt={file.filename} className="w-full h-[150px] object-cover bg-gray-100" />
+        ) : (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
+            <FileText size={18} />
+          </div>
+        )}
+        <div className={cn('flex-1 min-w-0', imagePreview && 'px-3 pb-3')}>
+          <p className="text-sm font-semibold text-gray-900 truncate">
+            {file.filename}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {file.extension} · {sizeLabel}
+          </p>
+        </div>
       </div>
     </div>
   )
@@ -84,7 +97,6 @@ export function AttachmentsMessage({
             <FileCard
               key={file.id ? `${file.id}-${index}` : `file-${index}`}
               file={file}
-              index={index}
               sizeLabel={sizeLabel(file)}
               role="user"
               onClick={() => onFileClick?.(file)}
@@ -104,7 +116,6 @@ export function AttachmentsMessage({
           <FileCard
             key={file.id ? `${file.id}-${index}` : `file-${index}`}
             file={file}
-            index={index}
             sizeLabel={sizeLabel(file)}
             role="assistant"
             onClick={() => onFileClick?.(file)}

@@ -1,11 +1,13 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.infrastructure.logging import setup_logging
 from app.infrastructure.storage.cos import get_cos
@@ -95,3 +97,7 @@ register_exception_handlers(app)
 
 # 7.集成路由
 app.include_router(router, prefix="/api")
+
+storage_dir = Path(__file__).resolve().parents[1] / "storage"
+storage_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/storage", StaticFiles(directory=str(storage_dir)), name="storage")

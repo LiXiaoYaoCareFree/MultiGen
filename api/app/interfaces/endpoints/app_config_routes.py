@@ -1,16 +1,149 @@
 import logging
-from typing import Optional, Dict
+import json
+import random
+from datetime import datetime
+from typing import Optional, Dict, List
 
 from fastapi import APIRouter, Depends, Body
 
 from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
-from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse
+from app.domain.services.tools.mcp import MCPClientManager
+from app.infrastructure.external.llm.openai_llm import OpenAILLM
+from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
+from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse, SuggestedQuestionsResponse
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
+from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/app-config", tags=["设置模块"])
+settings = get_settings()
+
+
+def _fallback_suggested_questions(count: int) -> List[str]:
+    date_label = datetime.now().strftime("%Y-%m-%d")
+    templates = [
+        f"截至 {date_label}，请围绕{{topic}}写一份深度研判：背景演化、核心矛盾、利益相关方、未来 6 个月情景推演。",
+        f"基于{{topic}}，做一份政策、产业、资本市场三层联动分析，并给出可执行跟踪清单。",
+        f"请对{{topic}}进行正反双方论证：各列 5 条最强论据，最后给出中立裁决与依据。",
+        f"围绕{{topic}}输出结构化简报：关键数据、时间线、风险矩阵、结论建议。",
+        f"从全球竞争视角分析{{topic}}：中国、美国、欧盟策略差异与潜在连锁反应。",
+    ]
+    topics = [
+        "AI 智能体与多模态应用落地",
+        "地缘冲突对大宗商品与航运价格影响",
+        "全球利率周期与人民币资产定价",
+        "新能源车价格战与产业链利润再分配",
+        "低空经济与无人机商业化",
+        "网络安全与数据合规治理",
+        "开源大模型与闭源模型竞争",
+        "平台经济监管与中小商家生态",
+    ]
+    random.shuffle(topics)
+    random.shuffle(templates)
+    out: List[str] = []
+    for idx in range(min(max(count, 1), 4)):
+        out.append(templates[idx % len(templates)].replace("{topic}", topics[idx % len(topics)]))
+    return out
+
+
+def _sanitize_question(text: str) -> str:
+    cleaned = (text or "").strip().replace("「", "").replace("」", "")
+    return " ".join(cleaned.split())
+
+
+def _extract_questions_from_content(content: str, count: int) -> List[str]:
+    if not content:
+        return []
+    questions: List[str] = []
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict) and isinstance(data.get("questions"), list):
+            for item in data["questions"]:
+                if isinstance(item, str) and item.strip():
+                    questions.append(item.strip())
+    except Exception:
+        pass
+    return [_sanitize_question(q) for q in questions[:count]]
+
+
+async def _generate_suggested_questions_with_llm(count: int) -> List[str]:
+    app_config = FileAppConfigRepository(config_path=settings.app_config_filepath).load()
+    llm = OpenAILLM(app_config.llm_config)
+    enabled_servers = {
+        name: conf for name, conf in app_config.mcp_config.mcpServers.items() if getattr(conf, "enabled", True)
+    }
+    mcp_manager = MCPClientManager(MCPConfig(mcpServers=enabled_servers))
+    tools = []
+    try:
+        await mcp_manager.initialize()
+        tools = await mcp_manager.get_all_tools()
+        system_prompt = (
+            "你是时事编辑。请生成高质量、复杂、贴近时事的中文问题。"
+            "如果有工具可用，优先至少调用一次MCP工具获取最新信息。"
+            "最终必须只输出JSON对象，格式：{\"questions\":[\"...\", \"...\", \"...\", \"...\"]}。"
+            "questions长度必须为4，每条都应可直接作为深度任务输入。"
+            "每条必须是一整句自然语言问题，不要使用「」这类括号包裹主题。"
+        )
+        user_prompt = (
+            f"请生成{count}个热点问题，要求：复杂、紧贴时事、可执行研究，语句自然完整。"
+            "不要解释，不要markdown，只返回JSON。"
+        )
+        messages: List[Dict] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        message = await llm.invoke(
+            messages=messages,
+            tools=tools if tools else None,
+            response_format={"type": "json_object"},
+            tool_choice="auto" if tools else None,
+        )
+        for _ in range(2):
+            tool_calls = message.get("tool_calls") or []
+            if not tool_calls:
+                break
+            messages.append({
+                "role": "assistant",
+                "content": message.get("content", ""),
+                "tool_calls": tool_calls,
+            })
+            for tool_call in tool_calls:
+                function = tool_call.get("function", {})
+                tool_name = function.get("name")
+                arguments = function.get("arguments", "{}")
+                try:
+                    parsed_args = json.loads(arguments) if isinstance(arguments, str) else (arguments or {})
+                except Exception:
+                    parsed_args = {}
+                result = await mcp_manager.invoke(tool_name, parsed_args)
+                tool_result_content = json.dumps(
+                    result.data if result and result.data is not None else {
+                        "success": bool(result.success) if result else False,
+                        "message": getattr(result, "message", ""),
+                    },
+                    ensure_ascii=False,
+                )
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.get("id"),
+                    "name": tool_name,
+                    "content": tool_result_content,
+                })
+            message = await llm.invoke(
+                messages=messages,
+                tools=tools if tools else None,
+                response_format={"type": "json_object"},
+                tool_choice="auto" if tools else None,
+            )
+        questions = _extract_questions_from_content(message.get("content", "") or "", count)
+        if len(questions) >= count:
+            return questions[:count]
+        merged = questions + _fallback_suggested_questions(count - len(questions))
+        return [_sanitize_question(q) for q in merged[:count]]
+    finally:
+        await mcp_manager.cleanup()
 
 
 @router.get(
@@ -201,3 +334,28 @@ async def set_a2a_server_enabled(
     """更新A2A服务的启用状态"""
     await app_config_service.set_a2a_server_enabled(a2a_id, enabled)
     return Response.success(msg="更新a2a服务器启用状态成功")
+
+
+@router.get(
+    path="/suggested-questions",
+    response_model=Response[SuggestedQuestionsResponse],
+    summary="生成首页热点问题",
+    description="每次请求都会调用LLM并尽量结合MCP工具生成4个复杂且贴近时事的问题",
+)
+async def get_suggested_questions(
+        count: int = 4,
+) -> Response[SuggestedQuestionsResponse]:
+    try:
+        target = max(1, min(count, 4))
+        questions = await _generate_suggested_questions_with_llm(target)
+        return Response.success(
+            msg="获取热点问题成功",
+            data=SuggestedQuestionsResponse(questions=[_sanitize_question(q) for q in questions[:target]]),
+        )
+    except Exception as e:
+        logger.exception(f"生成热点问题失败: {e}")
+        fallback = _fallback_suggested_questions(max(1, min(count, 4)))
+        return Response.success(
+            msg="获取热点问题成功",
+            data=SuggestedQuestionsResponse(questions=[_sanitize_question(q) for q in fallback]),
+        )

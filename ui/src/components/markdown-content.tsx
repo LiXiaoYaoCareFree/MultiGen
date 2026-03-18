@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
+import { resolveStorageUrl } from '@/lib/api/file'
 
 export interface MarkdownContentProps {
   content: string
@@ -21,8 +22,35 @@ const URL_FOLLOWED_BY_CJK = new RegExp(
   'g',
 )
 
+const STORAGE_PATH_REGEX = /<\s*(\/storage\/[^>\s]+)\s*>|(\/storage\/[^\s)\]]+)/g
+
+function getMediaTypeFromHref(href: string): 'image' | 'video' | 'audio' | 'model' | null {
+  const clean = href.split('?')[0].toLowerCase()
+  const ext = clean.split('.').pop() || ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image'
+  if (['mp4', 'webm', 'mov', 'm4v', 'mkv', 'avi'].includes(ext)) return 'video'
+  if (['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'opus'].includes(ext)) return 'audio'
+  if (['glb', 'gltf', 'obj', 'stl', 'fbx', 'ply', 'usdz'].includes(ext)) return 'model'
+  return null
+}
+
 function normalizeAutolinks(text: string): string {
-  return text.replace(URL_FOLLOWED_BY_CJK, '$1 $2')
+  const withHttpBoundary = text.replace(URL_FOLLOWED_BY_CJK, '$1 $2')
+  const normalizedLines = withHttpBoundary.split('\n').map((line) => {
+    const match = line.match(STORAGE_PATH_REGEX)
+    if (!match || match.length === 0) return line
+    const first = match[0]
+    const extracted = first.replace(/^<\s*/, '').replace(/\s*>$/, '')
+    const resolved = resolveStorageUrl(extracted)
+    if (getMediaTypeFromHref(resolved) === 'image') {
+      return `![generated-image](${resolved})`
+    }
+    return line.replace(STORAGE_PATH_REGEX, (_, p1: string, p2: string) => {
+      const rawPath = p1 || p2
+      return `<${resolveStorageUrl(rawPath)}>`
+    })
+  })
+  return normalizedLines.join('\n')
 }
 
 const headingClasses: Record<string, string> = {
@@ -97,15 +125,55 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
       {...props}
     />
   ),
+  img: ({ src, alt }) => {
+    if (!src) return null
+    return <img src={src} alt={alt || 'image'} className="max-w-full h-auto rounded-lg border my-2" />
+  },
   a: ({ node, className, href, children, ...props }) => {
     // 安全兜底：如果 href 包含 CJK 字符，说明 autolink 仍然误判，降级为纯文本
     if (href && /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(href)) {
       return <span className="text-sm text-gray-700">{children}</span>
     }
+    const finalHref = href?.startsWith('/storage/') ? resolveStorageUrl(href) : href
+    if (finalHref) {
+      const mediaType = getMediaTypeFromHref(finalHref)
+      if (mediaType === 'image') {
+        return (
+          <div className="my-2">
+            <img src={finalHref} alt={typeof children === 'string' ? children : 'image'} className="max-w-full h-auto rounded-lg border" />
+          </div>
+        )
+      }
+      if (mediaType === 'video') {
+        return (
+          <div className="my-2">
+            <video src={finalHref} controls className="w-full rounded-lg border bg-black" />
+          </div>
+        )
+      }
+      if (mediaType === 'audio') {
+        return (
+          <div className="my-2">
+            <audio src={finalHref} controls className="w-full max-w-xl" />
+          </div>
+        )
+      }
+      if (mediaType === 'model') {
+        return (
+          <div className="my-2">
+            <iframe
+              src={`https://modelviewer.dev/editor/#model=${encodeURIComponent(finalHref)}`}
+              className="w-full h-80 rounded-lg border"
+              title="model-preview"
+            />
+          </div>
+        )
+      }
+    }
     return (
       <a
         className={cn('text-sm text-blue-600 hover:underline', className)}
-        href={href}
+        href={finalHref}
         target="_blank"
         rel="noopener noreferrer"
         {...props}

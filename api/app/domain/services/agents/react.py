@@ -14,6 +14,7 @@ from app.domain.models.event import (
 from app.domain.models.file import File
 from app.domain.models.message import Message
 from app.domain.models.plan import Plan, Step, ExecutionStatus
+from app.domain.services.prompts.multimodal_workflow import MULTIMODAL_WORKFLOW_PROMPT
 from app.domain.services.prompts.react import REACT_SYSTEM_PROMPT, EXECUTION_PROMPT, SUMMARIZE_PROMPT
 from app.domain.services.prompts.system import SYSTEM_PROMPT
 from .base import BaseAgent
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class ReActAgent(BaseAgent):
     """基于ReAct架构的执行Agent"""
     name: str = "react"
-    _system_prompt: str = SYSTEM_PROMPT + REACT_SYSTEM_PROMPT
+    _system_prompt: str = SYSTEM_PROMPT + MULTIMODAL_WORKFLOW_PROMPT + REACT_SYSTEM_PROMPT
     _format: str = "json_object"  # format控制的是content、工具调用控制的是tool_calls两者不冲突
 
     async def execute_step(self, plan: Plan, step: Step, message: Message) -> AsyncGenerator[BaseEvent, None]:

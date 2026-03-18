@@ -4,6 +4,7 @@ from typing import Optional, AsyncGenerator
 from app.domain.models.event import BaseEvent, MessageEvent, PlanEvent, PlanEventStatus
 from app.domain.models.message import Message
 from app.domain.models.plan import Plan, Step
+from app.domain.services.prompts.multimodal_workflow import MULTIMODAL_WORKFLOW_PROMPT
 from app.domain.services.prompts.planner import (
     PLANNER_SYSTEM_PROMPT,
     CREATE_PLAN_PROMPT,
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 class PlannerAgent(BaseAgent):
     """规划Agent，用于将用户的任务/需求拆解成多个子步骤"""
     name: str = "planner"
-    _system_prompt: str = SYSTEM_PROMPT + PLANNER_SYSTEM_PROMPT
+    _system_prompt: str = SYSTEM_PROMPT + MULTIMODAL_WORKFLOW_PROMPT + PLANNER_SYSTEM_PROMPT
     _format: Optional[str] = "json_object"
     _tool_choice: Optional[str] = "none"
 

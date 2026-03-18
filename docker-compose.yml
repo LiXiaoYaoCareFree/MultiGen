@@ -1,9 +1,9 @@
 services:
   # ==================== 基础设施 ====================
 
-  manus-redis:
+  multigen-redis:
     image: redis:7-alpine
-    container_name: manus-redis
+    container_name: multigen-redis
     restart: unless-stopped
     command: >
       redis-server
@@ -13,50 +13,50 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - manus-network
+      - multigen-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  manus-postgres:
+  multigen-postgres:
     image: postgres:16-alpine
-    container_name: manus-postgres
+    container_name: multigen-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-manus}
+      POSTGRES_DB: ${POSTGRES_DB:-multigen}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - manus-network
+      - multigen-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-manus}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-multigen}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # ==================== 沙箱服务 ====================
 
-  manus-sandbox:
+  multigen-sandbox:
     build:
       context: ./sandbox
       dockerfile: Dockerfile
-    image: manus-sandbox
-    container_name: manus-sandbox
+    image: multigen-sandbox
+    container_name: multigen-sandbox
     restart: "no"
     networks:
-      - manus-network
+      - multigen-network
 
   # ==================== 后端 API ====================
 
-  manus-api:
+  multigen-api:
     build:
       context: ./api
       dockerfile: Dockerfile
-    container_name: manus-api
+    container_name: multigen-api
     restart: unless-stopped
     env_file:
       - .env
@@ -65,12 +65,21 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./logs:/app/logs
     depends_on:
-      manus-redis:
+      multigen-redis:
         condition: service_healthy
-      manus-postgres:
+      multigen-postgres:
         condition: service_healthy
+    environment:
+      REDIS_HOST: multigen-redis
+      REDIS_PORT: 6379
+      REDIS_ADDRESS: multigen-redis:6379
+      SQLALCHEMY_DATABASE_URI: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@multigen-postgres:5432/${POSTGRES_DB:-multigen}
+      SANDBOX_ADDRESS: multigen-sandbox:8080
+      SANDBOX_NETWORK: multigen-network
     networks:
-      - manus-network
+      multigen-network:
+        aliases:
+          - multigen-api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/status"]
       interval: 15s
@@ -80,19 +89,21 @@ services:
 
   # ==================== 前端 UI ====================
 
-  manus-ui:
+  multigen-ui:
     build:
       context: ./ui
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: /api
-    container_name: manus-ui
+    container_name: multigen-ui
     restart: unless-stopped
     depends_on:
-      manus-api:
+      multigen-api:
         condition: service_healthy
     networks:
-      - manus-network
+      multigen-network:
+        aliases:
+          - multigen-ui
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000"]
       interval: 15s
@@ -101,9 +112,9 @@ services:
 
   # ==================== Nginx 网关 ====================
 
-  manus-nginx:
+  multigen-nginx:
     image: nginx:alpine
-    container_name: manus-nginx
+    container_name: multigen-nginx
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-8088}:80"
@@ -115,10 +126,10 @@ services:
       # SSL 证书挂载（如需启用 HTTPS，取消以下注释）
       # - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - manus-ui
-      - manus-api
+      - multigen-ui
+      - multigen-api
     networks:
-      - manus-network
+      - multigen-network
 
 # ==================== 数据卷 ====================
 volumes:
@@ -129,6 +140,6 @@ volumes:
 
 # ==================== 网络 ====================
 networks:
-  manus-network:
-    name: manus-network
+  multigen-network:
+    name: multigen-network
     driver: bridge

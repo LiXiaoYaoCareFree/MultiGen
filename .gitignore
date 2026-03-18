@@ -164,3 +164,5 @@ cython_debug/
 .vscode/
 .claude/
 logs/
+storage/
+Multimodal-Agent-platform/

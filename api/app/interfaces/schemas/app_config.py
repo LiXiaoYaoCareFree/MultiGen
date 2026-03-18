@@ -33,3 +33,7 @@ class ListA2AServerItem(BaseModel):
 class ListA2AServerResponse(BaseModel):
     """获取A2A服务列表响应结构"""
     a2a_servers: List[ListA2AServerItem] = Field(default_factory=list)  # A2A服务列表
+
+
+class SuggestedQuestionsResponse(BaseModel):
+    questions: List[str] = Field(default_factory=list)

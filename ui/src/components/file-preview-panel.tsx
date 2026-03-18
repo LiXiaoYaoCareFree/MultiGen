@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { fileApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Download, FileText, X } from 'lucide-react'
@@ -21,63 +21,69 @@ export interface FilePreviewPanelProps {
  * - 文本类：txt, md, json, xml, csv, log, js, ts, tsx, jsx, py, java, go, rs, etc.
  * - 图片类：jpg, jpeg, png, gif, svg, webp, bmp
  */
-function isSupportedFileType(extension: string): { type: 'text' | 'image' | 'unsupported' } {
+type PreviewType = 'text' | 'image' | 'video' | 'audio' | 'model' | 'pdf' | 'unsupported'
+
+function getPreviewType(extension: string): PreviewType {
   const ext = extension.toLowerCase().replace(/^\./, '')
-  
-  // 文本类文件
   const textExtensions = [
     'txt', 'md', 'markdown', 'json', 'xml', 'html', 'htm', 'css', 'scss', 'sass', 'less',
     'js', 'jsx', 'ts', 'tsx', 'vue', 'py', 'java', 'go', 'rs', 'c', 'cpp', 'h', 'hpp',
     'cs', 'php', 'rb', 'swift', 'kt', 'scala', 'sh', 'bash', 'zsh', 'yml', 'yaml',
-    'toml', 'ini', 'conf', 'config', 'log', 'csv', 'sql', 'r', 'dart', 'lua', 'perl',
+    'toml', 'ini', 'conf', 'config', 'log', 'csv', 'sql', 'r', 'dart', 'lua', 'perl'
   ]
-  
-  // 图片类文件
-  const imageExtensions = [
-    'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico',
-  ]
-  
-  if (textExtensions.includes(ext)) {
-    return { type: 'text' }
-  }
-  
-  if (imageExtensions.includes(ext)) {
-    return { type: 'image' }
-  }
-  
-  return { type: 'unsupported' }
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'ico']
+  const videoExtensions = ['mp4', 'webm', 'mov', 'm4v', 'mkv', 'avi']
+  const audioExtensions = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'opus']
+  const modelExtensions = ['glb', 'gltf', 'obj', 'stl', 'fbx', 'ply', 'usdz']
+  if (textExtensions.includes(ext)) return 'text'
+  if (imageExtensions.includes(ext)) return 'image'
+  if (videoExtensions.includes(ext)) return 'video'
+  if (audioExtensions.includes(ext)) return 'audio'
+  if (modelExtensions.includes(ext)) return 'model'
+  if (ext === 'pdf') return 'pdf'
+  return 'unsupported'
 }
 
 export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
   const [content, setContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
-  const fileType = file ? isSupportedFileType(file.extension) : { type: 'unsupported' as const }
+  const extension = useMemo(() => {
+    if (!file) return ''
+    const fromField = (file.extension || '').replace(/^\./, '').trim()
+    if (fromField) return fromField
+    const ext = file.filename.split('.').pop() || ''
+    return ext.toLowerCase()
+  }, [file])
+  const previewType = getPreviewType(extension)
 
-  // 加载文件内容
-  const loadFileContent = useCallback(async (fileId: string, type: 'text' | 'image' | 'unsupported') => {
-    if (type === 'unsupported') {
-      return
+  const clearPreviewObjectUrl = useCallback((url: string | null) => {
+    if (url?.startsWith('blob:')) {
+      URL.revokeObjectURL(url)
     }
+  }, [])
 
+  const loadFileContent = useCallback(async (fileId: string, type: PreviewType) => {
     setLoading(true)
     setError(null)
     setContent(null)
-    setImageUrl(null)
+    setPreviewUrl((prev) => {
+      clearPreviewObjectUrl(prev)
+      return null
+    })
 
     try {
-      if (type === 'image') {
-        // 图片类型：生成预览 URL
+      if (type === 'text') {
         const blob = await fileApi.downloadFile(fileId)
-        const url = URL.createObjectURL(blob)
-        setImageUrl(url)
-      } else {
-        // 文本类型：读取内容
+        setContent(await blob.text())
+      } else if (type === 'image' || type === 'video' || type === 'audio' || type === 'pdf') {
         const blob = await fileApi.downloadFile(fileId)
-        const text = await blob.text()
-        setContent(text)
+        setPreviewUrl(URL.createObjectURL(blob))
+      } else if (type === 'model') {
+        const modelUrl = fileApi.getFileDownloadUrl(fileId)
+        setPreviewUrl(`https://modelviewer.dev/editor/#model=${encodeURIComponent(modelUrl)}`)
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : '加载文件内容失败'
@@ -86,7 +92,7 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [clearPreviewObjectUrl])
 
   // 下载文件
   const handleDownload = useCallback(async () => {
@@ -109,21 +115,17 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
     }
   }, [file])
 
-  // 当文件改变时加载内容
   useEffect(() => {
     if (file && file.id) {
-      loadFileContent(file.id, fileType.type)
+      loadFileContent(file.id, previewType)
     }
-  }, [file, fileType.type, loadFileContent])
+  }, [file, previewType, loadFileContent])
 
-  // 清理函数：关闭时释放资源
   useEffect(() => {
     return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl)
-      }
+      clearPreviewObjectUrl(previewUrl)
     }
-  }, [imageUrl])
+  }, [previewUrl, clearPreviewObjectUrl])
 
   if (!file) {
     return null
@@ -140,7 +142,7 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium text-gray-900 truncate">{file.filename}</p>
             <p className="text-xs text-gray-500">
-              {file.extension.replace(/^\./, '')} · {formatFileSize(file.size)}
+              {extension || 'unknown'} · {formatFileSize(file.size)}
             </p>
           </div>
         </div>
@@ -180,7 +182,7 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
           </div>
         )}
 
-        {!loading && !error && fileType.type === 'unsupported' && (
+        {!loading && !error && previewType === 'unsupported' && (
           <div className="flex flex-col items-center justify-center h-full px-6 gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-gray-400">
               <FileText size={32} />
@@ -201,11 +203,11 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
           </div>
         )}
 
-        {!loading && !error && fileType.type === 'image' && imageUrl && (
+        {!loading && !error && previewType === 'image' && previewUrl && (
           <ScrollArea className="h-full">
             <div className="p-4">
               <img 
-                src={imageUrl} 
+                src={previewUrl} 
                 alt={file.filename}
                 className="max-w-full h-auto rounded-lg border"
               />
@@ -213,7 +215,31 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
           </ScrollArea>
         )}
 
-        {!loading && !error && fileType.type === 'text' && content !== null && (
+        {!loading && !error && previewType === 'video' && previewUrl && (
+          <div className="h-full p-4">
+            <video src={previewUrl} controls className="w-full h-full rounded-lg border bg-black" />
+          </div>
+        )}
+
+        {!loading && !error && previewType === 'audio' && previewUrl && (
+          <div className="h-full p-6 flex items-center justify-center">
+            <audio src={previewUrl} controls className="w-full max-w-2xl" />
+          </div>
+        )}
+
+        {!loading && !error && previewType === 'pdf' && previewUrl && (
+          <div className="h-full p-2">
+            <iframe src={previewUrl} className="w-full h-full rounded-lg border" title={file.filename} />
+          </div>
+        )}
+
+        {!loading && !error && previewType === 'model' && previewUrl && (
+          <div className="h-full p-2">
+            <iframe src={previewUrl} className="w-full h-full rounded-lg border" title={file.filename} />
+          </div>
+        )}
+
+        {!loading && !error && previewType === 'text' && content !== null && (
           <ScrollArea className="h-full">
             <pre className="p-4 text-xs font-mono whitespace-pre-wrap break-words text-gray-700">
               {content}

@@ -1,8 +1,11 @@
 import asyncio
 import io
 import logging
+import mimetypes
 import uuid
-from typing import List, AsyncGenerator, Callable, BinaryIO
+from pathlib import Path
+from typing import List, AsyncGenerator, Callable, BinaryIO, Any, Optional, Dict
+from urllib.parse import urlparse
 
 from fastapi import UploadFile
 from pydantic import TypeAdapter
@@ -60,6 +63,8 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_config = a2a_config
         self._a2a_tool = A2ATool()
         self._file_storage = file_storage
+        self._api_base_dir = Path(__file__).resolve().parents[3]
+        self._pending_generated_files: Dict[str, File] = {}
         self._browser = browser
         self._flow = PlannerReActFlow(
             uow_factory=uow_factory,
@@ -178,7 +183,7 @@ class AgentTaskRunner(TaskRunner):
             # 3.判断会话中的文件是否存在
             if file:
                 async with self._uow:
-                    await self._uow.session.remove_file(self._session_id, file.filepath)
+                    await self._uow.session.remove_file(self._session_id, file.id)
 
             # 4.提取文件名字、文件信息并更新文件路径
             filename = filepath.split("/")[-1]
@@ -199,6 +204,80 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             logger.exception(f"AgentTaskRunner同步消息附件到文件存储桶失败: {str(e)}")
 
+    @staticmethod
+    def _normalize_storage_path(value: str) -> Optional[str]:
+        if not value:
+            return None
+        if value.startswith("/storage/"):
+            return value
+        if value.startswith("http://") or value.startswith("https://"):
+            parsed = urlparse(value)
+            if parsed.path.startswith("/storage/"):
+                return parsed.path
+        return None
+
+    def _extract_storage_paths(self, data: Any) -> List[str]:
+        paths: List[str] = []
+        if isinstance(data, dict):
+            for value in data.values():
+                paths.extend(self._extract_storage_paths(value))
+        elif isinstance(data, list):
+            for item in data:
+                paths.extend(self._extract_storage_paths(item))
+        elif isinstance(data, str):
+            normalized = self._normalize_storage_path(data)
+            if normalized:
+                paths.append(normalized)
+        return list(dict.fromkeys(paths))
+
+    async def _sync_local_storage_file_to_storage(self, storage_path: str) -> Optional[File]:
+        try:
+            normalized = self._normalize_storage_path(storage_path)
+            if not normalized:
+                return None
+            async with self._uow:
+                existed = await self._uow.session.get_file_by_path(self._session_id, normalized)
+            if existed:
+                return existed
+            local_path = self._api_base_dir / normalized.lstrip("/")
+            if not local_path.exists() or not local_path.is_file():
+                return None
+            filename = local_path.name
+            mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            data = local_path.read_bytes()
+            upload_file = UploadFile(
+                file=io.BytesIO(data),
+                filename=filename,
+                size=len(data),
+                headers={"content-type": mime_type},
+            )
+            file = await self._file_storage.upload_file(upload_file)
+            file.filepath = normalized
+            async with self._uow:
+                await self._uow.session.add_file(self._session_id, file)
+            return file
+        except Exception as e:
+            logger.exception(f"AgentTaskRunner同步本地存储文件失败[{storage_path}]: {str(e)}")
+            return None
+
+    async def _sync_result_storage_files(self, result_data: Any) -> List[File]:
+        files: List[File] = []
+        for storage_path in self._extract_storage_paths(result_data):
+            synced = await self._sync_local_storage_file_to_storage(storage_path)
+            if synced:
+                files.append(synced)
+        return files
+
+    def _remember_generated_files(self, files: List[File]) -> None:
+        for file in files:
+            if file and file.id:
+                self._pending_generated_files[file.id] = file
+
+    def _pop_pending_generated_files(self) -> List[File]:
+        files = list(self._pending_generated_files.values())
+        self._pending_generated_files.clear()
+        return files
+
     async def _sync_message_attachments_to_storage(self, event: MessageEvent) -> None:
         """将消息事件的附件同步到文件存储桶中"""
         # 1.定义附件列表存储数据
@@ -209,10 +288,23 @@ class AgentTaskRunner(TaskRunner):
             if event.attachments:
                 # 3.循环遍历所有附件
                 for attachment in event.attachments:
-                    # 4.根据文件路径将数据同步到文件存储桶
-                    file = await self._sync_file_to_storage(attachment.filepath)
-                    if file:
-                        attachments.append(file)
+                    if not attachment:
+                        continue
+                    filepath = getattr(attachment, "filepath", None) or ""
+                    if filepath.startswith("/storage/"):
+                        file = attachment
+                        if not getattr(file, "id", None):
+                            file = await self._sync_local_storage_file_to_storage(filepath)
+                        elif not getattr(file, "key", None):
+                            synced = await self._sync_local_storage_file_to_storage(filepath)
+                            file = synced or file
+                        if file:
+                            attachments.append(file)
+                        continue
+                    if filepath:
+                        file = await self._sync_file_to_storage(filepath)
+                        if file:
+                            attachments.append(file)
 
             # 5.更新时间中的附件列表资源
             event.attachments = attachments
@@ -304,6 +396,45 @@ class AgentTaskRunner(TaskRunner):
                         event.tool_content = MCPToolContent(result="(MCP工具无可用结果)") \
                             if event.tool_name == "mcp" \
                             else A2AToolContent(a2a_result="(A2A智能体无可用结果)")
+                elif event.tool_name in [
+                    "image_generation",
+                    "volcano_image",
+                    "volcano_video",
+                    "video_concatenation",
+                    "model_3d",
+                    "virtual_anchor",
+                    "qwen_tts",
+                    "audio_mixing",
+                ]:
+                    result_payload: Any = None
+                    if event.function_result and hasattr(event.function_result, "data"):
+                        result_payload = event.function_result.data
+                    elif event.function_result and hasattr(event.function_result, "model_dump"):
+                        result_payload = event.function_result.model_dump()
+                    else:
+                        result_payload = "(多模态工具无可用结果)"
+                    if event.function_result and hasattr(event.function_result, "success"):
+                        base_payload: Dict[str, Any] = {
+                            "success": bool(event.function_result.success),
+                            "message": getattr(event.function_result, "message", "") or "",
+                        }
+                        if result_payload is not None:
+                            base_payload["result"] = result_payload
+                        result_payload = base_payload
+                    synced_files = await self._sync_result_storage_files(result_payload)
+                    if synced_files:
+                        self._remember_generated_files(synced_files)
+                        if isinstance(result_payload, dict):
+                            result_payload = {
+                                **result_payload,
+                                "synced_files": [f.model_dump() for f in synced_files],
+                            }
+                        else:
+                            result_payload = {
+                                "result": result_payload,
+                                "synced_files": [f.model_dump() for f in synced_files],
+                            }
+                    event.tool_content = MCPToolContent(result=result_payload)
         except Exception as e:
             logger.exception(f"AgentTaskRunner生成工具内容失败: {str(e)}")
 
@@ -321,6 +452,17 @@ class AgentTaskRunner(TaskRunner):
             if isinstance(event, ToolEvent):
                 await self._handle_tool_event(event)
             elif isinstance(event, MessageEvent):
+                if event.role == "assistant":
+                    generated_files = self._pop_pending_generated_files()
+                    if generated_files:
+                        existed_map: Dict[str, File] = {}
+                        if event.attachments:
+                            for file in event.attachments:
+                                if file and file.id:
+                                    existed_map[file.id] = file
+                        for file in generated_files:
+                            existed_map[file.id] = file
+                        event.attachments = list(existed_map.values())
                 # 4.如果是消息事件则将AI消息事件中的附件同步到存储中
                 await self._sync_message_attachments_to_storage(event)
 
