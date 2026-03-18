@@ -118,13 +118,11 @@ services:
     restart: unless-stopped
     ports:
       - "${NGINX_PORT:-8088}:80"
-      # 如需启用 HTTPS，取消以下注释
-      # - "443:443"
+      - "${NGINX_SSL_PORT:-8443}:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      # SSL 证书挂载（如需启用 HTTPS，取消以下注释）
-      # - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
       - multigen-ui
       - multigen-api

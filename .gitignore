@@ -166,3 +166,4 @@ cython_debug/
 logs/
 storage/
 Multimodal-Agent-platform/
+nginx/ssl/
