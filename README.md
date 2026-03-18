@@ -74,10 +74,15 @@ mooc-manus/
    COS_SECRET_ID=your_cos_secret_id_here       # Tencent COS SecretId
    COS_SECRET_KEY=your_cos_secret_key_here     # Tencent COS SecretKey
    COS_BUCKET=your_cos_bucket_here             # COS bucket name
+   OPENAI_API_KEY=your_vocano_api_key_here     # Vocano API key
+ 
 
    # Optional
-   POSTGRES_PASSWORD=postgres                  # Database password
    NGINX_PORT=8088                             # Public port for Nginx
+   ADMIN_API_KEY=your_admin_api_key_here       # Admin API key for authentication
+   LLM_PROVIDER=vocano                      # LLM provider (deepseek or openai)
+   TENCENT_AI3D_API_KEY=your_tencent_ai3d_api_key_here # Tencent AI3D API key
+   DASHSCOPE_API_KEY=your_dashscope_api_key_here # Dashscope API key
    ```
 
 2. **Configure the AI model**
@@ -85,10 +90,37 @@ mooc-manus/
    Update the LLM configuration in `api/config.yaml`:
 
    ```yaml
-   llm_config:
-     base_url: https://api.deepseek.com/
-     api_key: your_api_key_here
-     model_name: deepseek-reasoner
+  llm_config:
+    base_url: https://api.deepseek.com/
+    api_key: YOUR_DEEPSEEK_API_KEY
+    model_name: deepseek-reasoner
+    temperature: 0.7
+    max_tokens: 8192
+  agent_config:
+    max_iterations: 100
+    max_retries: 3
+    max_search_results: 10
+  mcp_config:
+    mcpServers:
+      amap-maps-streamableHTTP:
+        transport: streamable_http
+        enabled: true
+        description: null
+        env: null
+        command: null
+        args: null
+        url: https://mcp.amap.com/mcp?key=YOUR_AMAP_API_KEY
+        headers: null
+      jina-mcp-server:
+        transport: streamable_http
+        enabled: true
+        description: null
+        env: null
+        command: null
+        args: null
+        url: https://mcp.jina.ai/v1
+        headers:
+          Authorization: Bearer YOUR_JINA_API_KEY
    ```
 
 3. **Start all services**
