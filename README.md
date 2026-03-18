@@ -89,7 +89,7 @@ mooc-manus/
 
    Update the LLM configuration in `api/config.yaml`:
 
-   ```yaml
+  ```yaml
   llm_config:
     base_url: https://api.deepseek.com/
     api_key: YOUR_DEEPSEEK_API_KEY
@@ -121,7 +121,7 @@ mooc-manus/
         url: https://mcp.jina.ai/v1
         headers:
           Authorization: Bearer YOUR_JINA_API_KEY
-   ```
+  ```
 
 3. **Start all services**
 
