@@ -28,6 +28,21 @@ import type { SessionFile } from '@/lib/api/types'
 import { sessionFileToAttachment } from '@/lib/session-events'
 import type { AttachmentFile } from '@/lib/session-events'
 
+function formatDisplayFilename(filename: string, keepChars = 40): string {
+  const name = (filename || '').trim()
+  if (!name) return ''
+  const dot = name.lastIndexOf('.')
+  if (dot <= 0 || dot === name.length - 1) {
+    return name
+  }
+  const base = name.slice(0, dot)
+  const ext = name.slice(dot)
+  if (base.length <= keepChars) {
+    return `${base}${ext}`
+  }
+  return `${base.slice(0, keepChars)}…${ext}`
+}
+
 export interface SessionHeaderProps {
   /** 任务/会话标题 */
   title?: string
@@ -149,7 +164,7 @@ export function SessionHeader({
                       <Item
                         key={file.id}
                         variant="default"
-                        className="p-2 flex-shrink-0 gap-2 cursor-pointer hover:bg-gray-100"
+                        className="p-2 w-full min-w-0 gap-2 cursor-pointer hover:bg-gray-100"
                         onClick={() => handleFileItemClick(file)}
                       >
                         <ItemMedia>
@@ -159,9 +174,11 @@ export function SessionHeader({
                             </AvatarGroupCount>
                           </Avatar>
                         </ItemMedia>
-                        <ItemContent className="gap-0">
-                          <ItemTitle className="text-sm text-gray-700">
-                            {file.filename}
+                        <ItemContent className="gap-0 min-w-0">
+                          <ItemTitle className="text-sm text-gray-700 w-full min-w-0">
+                            <span className="block w-full truncate">
+                              {formatDisplayFilename(file.filename)}
+                            </span>
                           </ItemTitle>
                           <ItemDescription className="text-xs">
                             {file.extension.replace(/^\./, '')} · {formatFileSize(file.size)}
