@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import re
 import uuid
 from abc import ABC
 from typing import Optional, List, AsyncGenerator, Dict, Any, Callable
@@ -24,6 +26,7 @@ class BaseAgent(ABC):
     _format: Optional[str] = None  # Agent的响应格式
     _retry_interval: float = 1.0  # 重试间隔
     _tool_choice: Optional[str] = None  # 强制选择工具
+    _summary_prefix: str = "[历史摘要]"
 
     def __init__(
             self,
@@ -116,14 +119,171 @@ class BaseAgent(ABC):
             except Exception as e:
                 # 10.记录日志并睡眠指定的时间
                 import traceback
-                error_msg = str(e)
-                logger.error(f"调用语言模型发生错误: {error_msg}\n{traceback.format_exc()}")
-                error = error_msg
+                error_msg = str(e) or repr(e)
+                error_type = e.__class__.__name__
+                logger.error(f"调用语言模型发生错误[{error_type}]: {error_msg}\n{traceback.format_exc()}")
+                error = f"{error_type}: {error_msg}"
+                if await self._shrink_memory_for_context_overflow(error_msg):
+                    continue
                 await asyncio.sleep(self._retry_interval)
                 continue
 
         # 11.所有重试均已耗尽仍未获得有效响应，抛出异常避免返回None
         raise RuntimeError(f"调用语言模型失败, 已达到最大重试次数({self._agent_config.max_retries}): {error}")
+
+    @staticmethod
+    def _estimate_message_tokens(message: Dict[str, Any]) -> int:
+        payload = json.dumps(message, ensure_ascii=False, default=str)
+        return max(1, len(payload) // 4) + 8
+
+    def _estimate_total_tokens(self, messages: List[Dict[str, Any]]) -> int:
+        return sum(self._estimate_message_tokens(message) for message in messages)
+
+    def _is_summary_message(self, message: Dict[str, Any]) -> bool:
+        if message.get("role") != "system":
+            return False
+        content = message.get("content")
+        return isinstance(content, str) and content.startswith(self._summary_prefix)
+
+    @staticmethod
+    def _truncate_text(text: str, max_len: int) -> str:
+        cleaned = re.sub(r"\s+", " ", text).strip()
+        if len(cleaned) <= max_len:
+            return cleaned
+        return f"{cleaned[:max_len]}..."
+
+    def _message_to_summary_line(self, message: Dict[str, Any]) -> Optional[str]:
+        role = message.get("role")
+        if role == "tool":
+            function_name = message.get("function_name") or "tool"
+            content = message.get("content")
+            if isinstance(content, str):
+                snippet = self._truncate_text(content, 180)
+            else:
+                snippet = self._truncate_text(json.dumps(content, ensure_ascii=False, default=str), 180)
+            return f"- 工具[{function_name}]结果: {snippet}"
+        if role in {"user", "assistant", "system"}:
+            content = message.get("content")
+            if content is None:
+                return None
+            if not isinstance(content, str):
+                content = json.dumps(content, ensure_ascii=False, default=str)
+            snippet = self._truncate_text(content, 180)
+            if not snippet:
+                return None
+            role_name = {"user": "用户", "assistant": "助手", "system": "系统"}[role]
+            return f"- {role_name}: {snippet}"
+        return None
+
+    def _extract_summary_body(self, message: Dict[str, Any]) -> str:
+        content = message.get("content")
+        if not isinstance(content, str):
+            return ""
+        return content[len(self._summary_prefix):].strip()
+
+    def _build_trimmed_history_summary(self, dropped_messages: List[Dict[str, Any]], previous_summary: str) -> str:
+        lines: List[str] = []
+        if previous_summary:
+            lines.append(f"- 既有摘要: {self._truncate_text(previous_summary, 500)}")
+        for message in dropped_messages:
+            line = self._message_to_summary_line(message)
+            if line:
+                lines.append(line)
+            if sum(len(item) for item in lines) >= 2400:
+                break
+        if not lines:
+            return ""
+        body = "\n".join(lines)
+        return self._truncate_text(body, 3000)
+
+    @staticmethod
+    def _parse_context_limit(error_msg: str) -> Optional[int]:
+        match = re.search(r"maximum context length is (\d+)", error_msg, re.IGNORECASE)
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _is_context_overflow_error(error_msg: str) -> bool:
+        lowered = error_msg.lower()
+        return (
+            "maximum context length" in lowered
+            or "context_length_exceeded" in lowered
+            or ("invalid_request_error" in lowered and "tokens" in lowered and "requested" in lowered)
+        )
+
+    async def _shrink_memory_for_context_overflow(self, error_msg: str) -> bool:
+        if not self._is_context_overflow_error(error_msg):
+            return False
+
+        await self._ensure_memory()
+        if not self._memory or len(self._memory.messages) <= 2:
+            return False
+
+        self._memory.compact()
+        messages = self._memory.get_messages()
+        context_limit = self._parse_context_limit(error_msg) or 131072
+        completion_tokens = max(256, self._llm.max_tokens)
+        target_prompt_tokens = max(4096, context_limit - completion_tokens - 1024)
+
+        system_message = messages[0] if messages and messages[0].get("role") == "system" else None
+        tail_messages = messages[1:] if system_message else messages[:]
+        previous_summary_text = ""
+        non_system_messages: List[Dict[str, Any]] = []
+        for message in tail_messages:
+            if self._is_summary_message(message):
+                previous_summary_text = self._extract_summary_body(message)
+                continue
+            non_system_messages.append(message)
+
+        kept_reversed: List[Dict[str, Any]] = []
+        kept_ids: set[int] = set()
+        total_tokens = self._estimate_message_tokens(system_message) if system_message else 0
+
+        for message in reversed(non_system_messages):
+            message_tokens = self._estimate_message_tokens(message)
+            if total_tokens + message_tokens > target_prompt_tokens:
+                continue
+            kept_reversed.append(message)
+            kept_ids.add(id(message))
+            total_tokens += message_tokens
+
+        kept_messages = list(reversed(kept_reversed))
+        dropped_messages = [message for message in non_system_messages if id(message) not in kept_ids]
+        summary_body = self._build_trimmed_history_summary(dropped_messages, previous_summary_text)
+
+        compacted_messages: List[Dict[str, Any]] = []
+        if system_message:
+            compacted_messages.append(system_message)
+        if summary_body:
+            compacted_messages.append({
+                "role": "system",
+                "content": f"{self._summary_prefix}\n{summary_body}",
+            })
+        compacted_messages.extend(kept_messages)
+
+        if len(compacted_messages) >= len(messages):
+            if system_message and len(non_system_messages) > 0:
+                compacted_messages = [system_message, *non_system_messages[1:]]
+            elif len(messages) > 1:
+                compacted_messages = messages[1:]
+
+        if len(compacted_messages) >= len(messages):
+            return False
+
+        old_tokens = self._estimate_total_tokens(messages)
+        new_tokens = self._estimate_total_tokens(compacted_messages)
+        self._memory.messages = compacted_messages
+        async with self._uow:
+            await self._uow.session.save_memory(self._session_id, self.name, self._memory)
+        logger.warning(
+            f"检测到上下文超限，已压缩记忆: 消息数{len(messages)}->{len(compacted_messages)}, "
+            f"估算tokens {old_tokens}->{new_tokens}, 目标上限{target_prompt_tokens}"
+        )
+        return True
 
     async def _invoke_tool(self, tool: BaseTool, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
         """传递工具包+工具名字+对应参数调用指定工具"""

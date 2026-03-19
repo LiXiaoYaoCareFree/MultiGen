@@ -79,8 +79,33 @@ class OpenAILLM(LLM):
             logger.info(f"OpenAI客户端返回内容: {response.model_dump()}")
             return response.choices[0].message.model_dump()
         except Exception as e:
-            logger.error(f"调用OpenAI客户端发生错误: {str(e)}")
-            raise ServerRequestsError("调用OpenAI客户端向LLM发起请求出错")
+            error_type = e.__class__.__name__
+            error_message = str(e) or repr(e)
+            status_code = getattr(e, "status_code", None)
+            code = getattr(e, "code", None)
+            request = getattr(e, "request", None)
+            request_method = getattr(request, "method", None) if request else None
+            request_url = str(getattr(request, "url", "")) if request else ""
+            body = getattr(e, "body", None)
+            body_text = ""
+            if body is not None:
+                body_text = str(body)
+                if len(body_text) > 600:
+                    body_text = f"{body_text[:600]}..."
+
+            details = [f"{error_type}: {error_message}"]
+            if status_code is not None:
+                details.append(f"status={status_code}")
+            if code:
+                details.append(f"code={code}")
+            if request_method or request_url:
+                details.append(f"request={request_method or ''} {request_url}".strip())
+            if body_text:
+                details.append(f"body={body_text}")
+
+            detail_text = " | ".join(details)
+            logger.error(f"调用OpenAI客户端发生错误: {detail_text}")
+            raise ServerRequestsError(f"调用OpenAI客户端向LLM发起请求出错: {detail_text}")
 
 
 if __name__ == "__main__":
