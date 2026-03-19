@@ -379,7 +379,7 @@ class MultimodalCore:
                 "n": 1,
                 "response_format": "url",
                 "stream": False,
-                "watermark": True,
+                "watermark": False,
             }
             data = await self._volcano_post("/images/generations", payload)
             remote = self._image_resp_url(data)
@@ -401,7 +401,7 @@ class MultimodalCore:
                 "size": self._normalize_volcano_image_size(size),
                 "response_format": "url",
                 "stream": False,
-                "watermark": True,
+                "watermark": False,
             }
             data = await self._volcano_post("/images/generations", payload)
             remote = self._image_resp_url(data)

@@ -12,10 +12,12 @@ MultiGen is a general-purpose AI Agent system designed for fully private deploym
 
 <table width="100%">
   <tr>
-    <td width="50%" align="center">
+    <td align="center">
       <img src="assets/bings-search.png" alt="Bing search" width="95%" />
     </td>
-    <td width="50%" align="center">
+  </tr>
+  <tr>
+    <td align="center">
       <img src="assets/bings-search-image.png" alt="Bing image search" width="95%" />
     </td>
   </tr>
@@ -39,6 +41,32 @@ MultiGen is a general-purpose AI Agent system designed for fully private deploym
     </td>
   </tr>
 </table>
+
+
+<p align="center">
+  <img src="assets/img.png" alt="Home page" width="92%" />
+</p>
+
+
+<table>
+  <tr>
+    <td width="33%" align="center">
+        <img src="assets/古风女子图1.jpg" width="100%" />
+    </td>
+    <td width="33%" align="center">
+        <img src="assets/古风女子图2.jpg" width="100%" />
+    </td>
+    <td width="33%" align="center">
+        <img src="assets/古风女子图5.jpeg" width="100%" />
+    </td>
+  </tr>
+</table>
+
+
+<p align="center">
+  <img src="assets/tts_播客.png" alt="Home page" width="92%" />
+</p>
+
 
 ## Project Layout
 
