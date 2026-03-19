@@ -1,4 +1,5 @@
 import asyncio
+import difflib
 import json
 import logging
 import re
@@ -61,14 +62,59 @@ class BaseAgent(ABC):
         return available_tools
 
     def _get_tool(self, tool_name: str) -> BaseTool:
-        """获取对应工具所在的工具集/包"""
-        # 1.循环遍历所有工具包
-        for tool in self._tools:
-            # 2.判断工具包中是否存在该工具
-            if tool.has_tool(tool_name):
-                return tool
+        tool, _ = self._resolve_tool(tool_name)
+        return tool
 
-        raise ValueError(f"未知工具: {tool_name}")
+    @staticmethod
+    def _normalize_tool_name(tool_name: str) -> str:
+        normalized = re.sub(r"[^a-zA-Z0-9]+", "_", (tool_name or "").strip().lower())
+        normalized = re.sub(r"_+", "_", normalized).strip("_")
+        return normalized
+
+    def _list_available_tool_names(self) -> List[str]:
+        names: List[str] = []
+        for tool in self._tools:
+            for schema in tool.get_tools():
+                function = schema.get("function") if isinstance(schema, dict) else None
+                name = function.get("name") if isinstance(function, dict) else None
+                if isinstance(name, str) and name:
+                    names.append(name)
+        return names
+
+    def _resolve_tool(self, tool_name: str) -> tuple[BaseTool, str]:
+        for tool in self._tools:
+            if tool.has_tool(tool_name):
+                return tool, tool_name
+
+        available_names = self._list_available_tool_names()
+        normalized_target = self._normalize_tool_name(tool_name)
+        normalized_map: Dict[str, List[str]] = {}
+        for candidate in available_names:
+            normalized_map.setdefault(self._normalize_tool_name(candidate), []).append(candidate)
+
+        normalized_candidates = normalized_map.get(normalized_target, [])
+        if len(normalized_candidates) == 1:
+            corrected_name = normalized_candidates[0]
+            for tool in self._tools:
+                if tool.has_tool(corrected_name):
+                    logger.warning(f"工具名自动纠正: {tool_name} -> {corrected_name}")
+                    return tool, corrected_name
+
+        close_matches = difflib.get_close_matches(
+            normalized_target,
+            list(normalized_map.keys()),
+            n=1,
+            cutoff=0.88,
+        )
+        if close_matches:
+            corrected_name = normalized_map[close_matches[0]][0]
+            for tool in self._tools:
+                if tool.has_tool(corrected_name):
+                    logger.warning(f"工具名近似纠正: {tool_name} -> {corrected_name}")
+                    return tool, corrected_name
+
+        hint = ", ".join(available_names[:12])
+        raise ValueError(f"未知工具: {tool_name}。可用工具示例: {hint}")
 
     async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Dict[str, Any]:
         """调用语言模型并处理记忆内容"""
@@ -82,9 +128,11 @@ class BaseAgent(ABC):
         error = "调用语言模型发生错误"
         for _ in range(self._agent_config.max_retries):
             try:
+                llm_messages = self._build_llm_messages(self._memory.get_messages())
+
                 # 4.调用语言模型获取响应内容
                 message = await self._llm.invoke(
-                    messages=self._memory.get_messages(),
+                    messages=llm_messages,
                     tools=self._get_available_tools(),
                     response_format=response_format,
                     tool_choice=self._tool_choice,
@@ -130,6 +178,16 @@ class BaseAgent(ABC):
 
         # 11.所有重试均已耗尽仍未获得有效响应，抛出异常避免返回None
         raise RuntimeError(f"调用语言模型失败, 已达到最大重试次数({self._agent_config.max_retries}): {error}")
+
+    def _build_llm_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        llm_messages: List[Dict[str, Any]] = []
+        requires_reasoning = self._llm.model_name.strip().lower() == "deepseek-reasoner"
+        for message in messages:
+            copied = dict(message)
+            if requires_reasoning and copied.get("role") == "assistant" and copied.get("tool_calls"):
+                copied.setdefault("reasoning_content", "")
+            llm_messages.append(copied)
+        return llm_messages
 
     @staticmethod
     def _estimate_message_tokens(message: Dict[str, Any]) -> int:
@@ -196,6 +254,44 @@ class BaseAgent(ABC):
         body = "\n".join(lines)
         return self._truncate_text(body, 3000)
 
+    async def _summarize_trimmed_history(self, dropped_messages: List[Dict[str, Any]], previous_summary: str) -> str:
+        if not dropped_messages and not previous_summary:
+            return ""
+
+        draft = self._build_trimmed_history_summary(dropped_messages, previous_summary)
+        if not draft:
+            return ""
+
+        prompt_source = self._truncate_text(draft, 5000)
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是会话摘要助手。请将给定历史压缩成简洁中文摘要，保留："
+                    "已完成关键动作、关键事实、产物路径、未完成事项。"
+                    "输出纯文本，不要Markdown，不要解释。"
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"请总结以下被裁剪历史：\n{prompt_source}",
+            },
+        ]
+
+        try:
+            summary_message = await self._llm.invoke(
+                messages=messages,
+                tools=None,
+                response_format=None,
+                tool_choice=None,
+            )
+            content = summary_message.get("content") if isinstance(summary_message, dict) else None
+            if isinstance(content, str) and content.strip():
+                return self._truncate_text(content, 3000)
+        except Exception as e:
+            logger.warning(f"LLM会话摘要失败，回退规则摘要: {e}")
+        return self._truncate_text(draft, 3000)
+
     @staticmethod
     def _parse_context_limit(error_msg: str) -> Optional[int]:
         match = re.search(r"maximum context length is (\d+)", error_msg, re.IGNORECASE)
@@ -253,7 +349,7 @@ class BaseAgent(ABC):
 
         kept_messages = list(reversed(kept_reversed))
         dropped_messages = [message for message in non_system_messages if id(message) not in kept_ids]
-        summary_body = self._build_trimmed_history_summary(dropped_messages, previous_summary_text)
+        summary_body = await self._summarize_trimmed_history(dropped_messages, previous_summary_text)
 
         compacted_messages: List[Dict[str, Any]] = []
         if system_message:
@@ -407,25 +503,25 @@ class BaseAgent(ABC):
                 function_args = self._normalize_function_args(function_name, function_args_raw)
 
                 # 7.取出Agent中对应的工具
-                tool = self._get_tool(function_name)
+                tool, resolved_function_name = self._resolve_tool(function_name)
 
                 # 8.返回工具即将调用事件，其中tool_content比较特殊，需要在具体业务中进行实现，这里留空即可
                 yield ToolEvent(
                     tool_call_id=tool_call_id,
                     tool_name=tool.name,
-                    function_name=function_name,
+                    function_name=resolved_function_name,
                     function_args=function_args,
                     status=ToolEventStatus.CALLING,
                 )
 
                 # 9.调用工具并获取结果
-                result = await self._invoke_tool(tool, function_name, function_args)
+                result = await self._invoke_tool(tool, resolved_function_name, function_args)
 
                 # 10.返回工具调用结果，其中tool_content比较特殊，需要在业务中进行实现
                 yield ToolEvent(
                     tool_call_id=tool_call_id,
                     tool_name=tool.name,
-                    function_name=function_name,
+                    function_name=resolved_function_name,
                     function_args=function_args,
                     function_result=result,
                     status=ToolEventStatus.CALLED,
@@ -435,7 +531,7 @@ class BaseAgent(ABC):
                 tool_messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call_id,
-                    "function_name": function_name,
+                    "function_name": resolved_function_name,
                     "content": result.model_dump_json(),
                 })
 
