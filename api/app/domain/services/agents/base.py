@@ -2,6 +2,7 @@ import asyncio
 import difflib
 import json
 import logging
+import math
 import re
 import uuid
 from abc import ABC
@@ -44,6 +45,7 @@ class BaseAgent(ABC):
         self._session_id = session_id
         self._agent_config = agent_config
         self._llm = llm
+        self._max_prompt_tokens = max(2048, int(getattr(llm, "max_prompt_tokens", 122000)))
         self._memory: Optional[Memory] = None
         self._json_parser = json_parser
         self._tools = tools
@@ -129,6 +131,15 @@ class BaseAgent(ABC):
         for _ in range(self._agent_config.max_retries):
             try:
                 llm_messages = self._build_llm_messages(self._memory.get_messages())
+                effective_prompt_limit = self._get_effective_prompt_token_limit()
+                while self._estimate_total_tokens(llm_messages) > effective_prompt_limit:
+                    shrunk = await self._shrink_memory_to_target_prompt_tokens(
+                        target_prompt_tokens=effective_prompt_limit,
+                        reason="preflight_budget_guard",
+                    )
+                    if not shrunk:
+                        break
+                    llm_messages = self._build_llm_messages(self._memory.get_messages())
 
                 # 4.调用语言模型获取响应内容
                 message = await self._llm.invoke(
@@ -136,6 +147,7 @@ class BaseAgent(ABC):
                     tools=self._get_available_tools(),
                     response_format=response_format,
                     tool_choice=self._tool_choice,
+                    session_id=self._session_id,
                 )
 
                 # 5.处理AI响应内容避免空回复
@@ -182,17 +194,89 @@ class BaseAgent(ABC):
     def _build_llm_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         llm_messages: List[Dict[str, Any]] = []
         requires_reasoning = self._llm.model_name.strip().lower() == "deepseek-reasoner"
+        pending_assistant_message: Optional[Dict[str, Any]] = None
+        pending_tool_call_ids: set[str] = set()
+        pending_tool_call_seen_ids: set[str] = set()
+        pending_tool_messages: List[Dict[str, Any]] = []
+
+        def flush_pending_assistant() -> None:
+            nonlocal pending_assistant_message, pending_tool_call_ids, pending_tool_call_seen_ids, pending_tool_messages
+            if not pending_assistant_message:
+                return
+            is_complete = pending_tool_call_ids.issubset(pending_tool_call_seen_ids)
+            if is_complete:
+                llm_messages.append(pending_assistant_message)
+                llm_messages.extend(pending_tool_messages)
+            else:
+                pending_assistant_message.pop("tool_calls", None)
+                llm_messages.append(pending_assistant_message)
+                logger.warning(
+                    "检测到assistant/tool链路不完整，已移除tool_calls后发送: "
+                    f"expect={len(pending_tool_call_ids)} seen={len(pending_tool_call_seen_ids)}"
+                )
+            pending_assistant_message = None
+            pending_tool_call_ids = set()
+            pending_tool_call_seen_ids = set()
+            pending_tool_messages = []
+
         for message in messages:
             copied = dict(message)
-            if requires_reasoning and copied.get("role") == "assistant" and copied.get("tool_calls"):
-                copied.setdefault("reasoning_content", "")
+            role = copied.get("role")
+
+            if role == "assistant":
+                flush_pending_assistant()
+                raw_tool_calls = copied.get("tool_calls")
+                valid_tool_calls: List[Dict[str, Any]] = []
+                if isinstance(raw_tool_calls, list):
+                    for item in raw_tool_calls:
+                        if not isinstance(item, dict):
+                            continue
+                        tool_call_id = item.get("id")
+                        if not isinstance(tool_call_id, str) or not tool_call_id.strip():
+                            continue
+                        valid_tool_calls.append(item)
+
+                if valid_tool_calls:
+                    copied["tool_calls"] = valid_tool_calls
+                    pending_assistant_message = copied
+                    pending_tool_call_ids = {
+                        item["id"] for item in valid_tool_calls if isinstance(item.get("id"), str) and item["id"].strip()
+                    }
+                    pending_tool_call_seen_ids = set()
+                    pending_tool_messages = []
+                    if requires_reasoning:
+                        pending_assistant_message.setdefault("reasoning_content", "")
+                else:
+                    copied.pop("tool_calls", None)
+                    llm_messages.append(copied)
+                continue
+
+            if role == "tool":
+                tool_call_id = copied.get("tool_call_id")
+                if (
+                    not isinstance(tool_call_id, str)
+                    or not tool_call_id.strip()
+                    or not pending_assistant_message
+                    or tool_call_id not in pending_tool_call_ids
+                ):
+                    logger.warning(f"跳过无效tool消息，未匹配到前置tool_calls: {tool_call_id}")
+                    continue
+                if copied.get("content") is None:
+                    copied["content"] = ""
+                pending_tool_messages.append(copied)
+                pending_tool_call_seen_ids.add(tool_call_id)
+                continue
+
+            flush_pending_assistant()
             llm_messages.append(copied)
+
+        flush_pending_assistant()
         return llm_messages
 
     @staticmethod
     def _estimate_message_tokens(message: Dict[str, Any]) -> int:
         payload = json.dumps(message, ensure_ascii=False, default=str)
-        return max(1, len(payload) // 4) + 8
+        return max(1, math.ceil(len(payload) / 3)) + 12
 
     def _estimate_total_tokens(self, messages: List[Dict[str, Any]]) -> int:
         return sum(self._estimate_message_tokens(message) for message in messages)
@@ -284,6 +368,7 @@ class BaseAgent(ABC):
                 tools=None,
                 response_format=None,
                 tool_choice=None,
+                session_id=self._session_id,
             )
             content = summary_message.get("content") if isinstance(summary_message, dict) else None
             if isinstance(content, str) and content.strip():
@@ -308,22 +393,31 @@ class BaseAgent(ABC):
         return (
             "maximum context length" in lowered
             or "context_length_exceeded" in lowered
+            or "prompt token budget exceeded" in lowered
             or ("invalid_request_error" in lowered and "tokens" in lowered and "requested" in lowered)
         )
 
-    async def _shrink_memory_for_context_overflow(self, error_msg: str) -> bool:
-        if not self._is_context_overflow_error(error_msg):
-            return False
+    def _get_effective_prompt_token_limit(self) -> int:
+        base_limit = max(2048, self._max_prompt_tokens)
+        resolver = getattr(self._llm, "get_safe_prompt_token_limit", None)
+        if not callable(resolver):
+            return base_limit
+        try:
+            resolved = int(resolver(self._session_id))
+            return max(2048, min(base_limit, resolved))
+        except Exception as e:
+            logger.warning(f"获取会话安全prompt预算失败，回退默认预算: {e}")
+            return base_limit
 
+    async def _shrink_memory_to_target_prompt_tokens(self, target_prompt_tokens: int, reason: str) -> bool:
         await self._ensure_memory()
         if not self._memory or len(self._memory.messages) <= 2:
             return False
 
         self._memory.compact()
         messages = self._memory.get_messages()
-        context_limit = self._parse_context_limit(error_msg) or 131072
-        completion_tokens = max(256, self._llm.max_tokens)
-        target_prompt_tokens = max(4096, context_limit - completion_tokens - 1024)
+        if self._estimate_total_tokens(messages) <= target_prompt_tokens:
+            return False
 
         system_message = messages[0] if messages and messages[0].get("role") == "system" else None
         tail_messages = messages[1:] if system_message else messages[:]
@@ -335,13 +429,15 @@ class BaseAgent(ABC):
                 continue
             non_system_messages.append(message)
 
+        summary_reserved_tokens = 2048
+        target_prompt_tokens_without_summary = max(2048, target_prompt_tokens - summary_reserved_tokens)
         kept_reversed: List[Dict[str, Any]] = []
         kept_ids: set[int] = set()
         total_tokens = self._estimate_message_tokens(system_message) if system_message else 0
 
         for message in reversed(non_system_messages):
             message_tokens = self._estimate_message_tokens(message)
-            if total_tokens + message_tokens > target_prompt_tokens:
+            if total_tokens + message_tokens > target_prompt_tokens_without_summary:
                 continue
             kept_reversed.append(message)
             kept_ids.add(id(message))
@@ -372,14 +468,30 @@ class BaseAgent(ABC):
 
         old_tokens = self._estimate_total_tokens(messages)
         new_tokens = self._estimate_total_tokens(compacted_messages)
+        if new_tokens >= old_tokens:
+            return False
+
         self._memory.messages = compacted_messages
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, self.name, self._memory)
         logger.warning(
-            f"检测到上下文超限，已压缩记忆: 消息数{len(messages)}->{len(compacted_messages)}, "
+            f"已压缩记忆以适配prompt预算({reason}): 消息数{len(messages)}->{len(compacted_messages)}, "
             f"估算tokens {old_tokens}->{new_tokens}, 目标上限{target_prompt_tokens}"
         )
         return True
+
+    async def _shrink_memory_for_context_overflow(self, error_msg: str) -> bool:
+        if not self._is_context_overflow_error(error_msg):
+            return False
+
+        context_limit = self._parse_context_limit(error_msg) or 131072
+        completion_tokens = max(256, self._llm.max_tokens)
+        target_prompt_tokens = max(4096, context_limit - completion_tokens - 1024)
+        target_prompt_tokens = min(target_prompt_tokens, self._get_effective_prompt_token_limit())
+        return await self._shrink_memory_to_target_prompt_tokens(
+            target_prompt_tokens=target_prompt_tokens,
+            reason="context_overflow",
+        )
 
     async def _invoke_tool(self, tool: BaseTool, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
         """传递工具包+工具名字+对应参数调用指定工具"""

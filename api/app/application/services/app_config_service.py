@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from typing import List
@@ -67,25 +68,31 @@ class AppConfigService:
         # 2.创建mcp客户端管理器，对配置信息不进行过滤
         mcp_servers = []
         mcp_client_manager = MCPClientManager(mcp_config=app_config.mcp_config)
+        tools = {}
 
         try:
             # 3.初始化mcp客户端管理器
-            await mcp_client_manager.initialize()
+            await asyncio.wait_for(mcp_client_manager.initialize(), timeout=20)
 
             # 4.获取mcp客户端管理器的工具列表
             tools = mcp_client_manager.tools
-
-            # 5.循环组装响应的工具格式
-            for server_name, server_config in app_config.mcp_config.mcpServers.items():
-                mcp_servers.append(ListMCPServerItem(
-                    server_name=server_name,
-                    enabled=server_config.enabled,
-                    transport=server_config.transport,
-                    tools=[tool.name for tool in tools.get(server_name, [])]
-                ))
+        except Exception as e:
+            logger.warning(f"获取MCP工具列表失败，将回退为仅展示服务器配置: {str(e)}")
         finally:
-            # 6.清除MCP客户端管理器的相关资源
-            await mcp_client_manager.cleanup()
+            # 5.清除MCP客户端管理器的相关资源
+            try:
+                await mcp_client_manager.cleanup()
+            except Exception as e:
+                logger.warning(f"清理MCP客户端管理器失败，忽略并继续返回配置列表: {str(e)}")
+
+        # 6.循环组装响应的工具格式
+        for server_name, server_config in app_config.mcp_config.mcpServers.items():
+            mcp_servers.append(ListMCPServerItem(
+                server_name=server_name,
+                enabled=server_config.enabled,
+                transport=server_config.transport,
+                tools=[tool.name for tool in tools.get(server_name, [])]
+            ))
 
         return mcp_servers
 
