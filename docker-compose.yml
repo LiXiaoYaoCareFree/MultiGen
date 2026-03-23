@@ -46,7 +46,13 @@ services:
       dockerfile: Dockerfile
     image: multigen-sandbox
     container_name: multigen-sandbox
-    restart: "no"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/api/supervisor/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     networks:
       - multigen-network
 
@@ -68,6 +74,8 @@ services:
       multigen-redis:
         condition: service_healthy
       multigen-postgres:
+        condition: service_healthy
+      multigen-sandbox:
         condition: service_healthy
     environment:
       REDIS_HOST: multigen-redis
