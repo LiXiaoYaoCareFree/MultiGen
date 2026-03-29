@@ -10,6 +10,7 @@ class LLM(Protocol):
             tools: List[Dict[str, Any]] = None,
             response_format: Dict[str, Any] = None,
             tool_choice: str = None,
+            session_id: str | None = None,
     ) -> Dict[str, Any]:
         """传递消息列表、工具列表、响应格式、工具选择策略调用LLM接口"""
         ...
@@ -27,4 +28,11 @@ class LLM(Protocol):
     @property
     def max_tokens(self) -> int:
         """只读属性，返回LLM的最大生成token数"""
+        ...
+
+    @property
+    def max_prompt_tokens(self) -> int:
+        ...
+
+    def get_safe_prompt_token_limit(self, session_id: str | None = None) -> int:
         ...

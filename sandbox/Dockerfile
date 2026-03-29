@@ -24,7 +24,7 @@ RUN useradd -m -d /home/ubuntu -s /bin/bash ubuntu && \
 # 6.安装Python 3.10版本(非uv)
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && \
-    apt-get install -y python3.10 python3.10-venv python3.10-dev python3-pip && \
+    apt-get install -y python3.10 python3.10-venv python3.10-dev python3-pip python3-setuptools python3-pkg-resources && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

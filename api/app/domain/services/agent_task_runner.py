@@ -4,7 +4,7 @@ import logging
 import mimetypes
 import uuid
 from pathlib import Path
-from typing import List, AsyncGenerator, Callable, BinaryIO, Any, Optional, Dict
+from typing import List, AsyncGenerator, Callable, BinaryIO, Any, Optional, Dict, Tuple
 from urllib.parse import urlparse
 
 from fastapi import UploadFile
@@ -38,6 +38,30 @@ logger = logging.getLogger(__name__)
 
 class AgentTaskRunner(TaskRunner):
     """基于Agent智能体的任务运行器"""
+
+    def _is_transient_sandbox_error(self, e: Exception) -> bool:
+        message = str(e)
+        transient_signals = (
+            "Sandbox Supervisor",
+            "supervisor/status",
+            "Could not resolve host",
+            "Name or service not known",
+            "Temporary failure in name resolution",
+            "Connection refused",
+            "ConnectError",
+            "ReadTimeout",
+            "ConnectTimeout",
+            "Timeout",
+            "Connection reset by peer",
+            "Server disconnected",
+        )
+        return any(signal in message for signal in transient_signals)
+
+    def _get_retry_sleep_seconds(self, attempt: int) -> int:
+        schedule = (2, 4, 8, 15, 30)
+        if attempt <= 0:
+            return schedule[0]
+        return schedule[min(attempt - 1, len(schedule) - 1)]
 
     def __init__(
             self,
@@ -90,19 +114,19 @@ class AgentTaskRunner(TaskRunner):
             await self._uow.session.add_event(self._session_id, event)
 
     @classmethod
-    async def _pop_event(cls, task: Task) -> Event:
+    async def _pop_event(cls, task: Task) -> Tuple[Optional[str], Optional[str], Optional[Event]]:
         """从任务的输入流中获取事件信息"""
         # 1.从任务task中读取数据
         event_id, event_str = await task.input_stream.pop()
         if event_str is None:
             logger.warning(f"AgentTaskRunner接收到空消息")
-            return
+            return None, None, None
 
         # 2.使用pydantic+type类型将字符串转换成事件
         event = TypeAdapter(Event).validate_json(event_str)
         event.id = event_id
 
-        return event
+        return event_id, event_str, event
 
     async def _sync_file_to_sandbox(self, file_id: str) -> File:
         """根据文件id将文件同步到沙箱中"""
@@ -491,14 +515,34 @@ class AgentTaskRunner(TaskRunner):
         try:
             # 1.确保沙箱、mcp、a2a均初始化完成
             logger.info(f"AgentTaskRunner任务处理开始")
-            await self._sandbox.ensure_sandbox()
-            await self._mcp_tool.initialize(self._mcp_config)
-            await self._a2a_tool.initialize(self._a2a_config)
+            loop = asyncio.get_running_loop()
+            degrade_started_at = loop.time()
+            init_attempt = 0
+
+            while True:
+                try:
+                    await self._sandbox.ensure_sandbox()
+                    await self._mcp_tool.initialize(self._mcp_config)
+                    await self._a2a_tool.initialize(self._a2a_config)
+                    break
+                except Exception as e:
+                    init_attempt += 1
+                    if self._is_transient_sandbox_error(e) and loop.time() - degrade_started_at < 600:
+                        if init_attempt == 1 or init_attempt % 5 == 0:
+                            await self._put_and_add_event(
+                                task,
+                                MessageEvent(role="assistant", message="沙箱暂不可用，正在自动恢复并重试…"),
+                            )
+                        await asyncio.sleep(self._get_retry_sleep_seconds(init_attempt))
+                        continue
+                    raise
 
             # 2.循环读取任务中的输入消息队列
             while not await task.input_stream.is_empty():
                 # 3.从输入流中获取数据
-                event = await self._pop_event(task)
+                original_event_id, original_event_str, event = await self._pop_event(task)
+                if event is None:
+                    continue
                 message = ""
 
                 # 4.判断事件类型是否为消息事件，如果是则处理消息并将附件同步到沙箱中
@@ -514,32 +558,43 @@ class AgentTaskRunner(TaskRunner):
                 )
 
                 # 6.传递消息对象并运行PlannerReActFlow
-                async for event in self._run_flow(message_obj):
-                    # 7.将得到的事件添加到消息队列中
-                    await self._put_and_add_event(task, event)
+                message_attempt = 0
+                while True:
+                    try:
+                        async for event in self._run_flow(message_obj):
+                            await self._put_and_add_event(task, event)
 
-                    # 8.如果事件类型为标题事件则更新会话标题
-                    if isinstance(event, TitleEvent):
-                        async with self._uow:
-                            await self._uow.session.update_title(self._session_id, event.title)
-                    elif isinstance(event, MessageEvent):
-                        # 9.如果事件为消息事件，则更新最新消息并新增未读消息数
-                        async with self._uow:
-                            await self._uow.session.update_latest_message(
-                                self._session_id,
-                                event.message,
-                                event.created_at,
-                            )
-                            await self._uow.session.increment_unread_message_count(self._session_id)
-                    elif isinstance(event, WaitEvent):
-                        # 10.如果事件为等待，则更新会话状态并终止程序
-                        async with self._uow:
-                            await self._uow.session.update_status(self._session_id, SessionStatus.WAITING)
-                        return
+                            if isinstance(event, TitleEvent):
+                                async with self._uow:
+                                    await self._uow.session.update_title(self._session_id, event.title)
+                            elif isinstance(event, MessageEvent):
+                                async with self._uow:
+                                    await self._uow.session.update_latest_message(
+                                        self._session_id,
+                                        event.message,
+                                        event.created_at,
+                                    )
+                                    await self._uow.session.increment_unread_message_count(self._session_id)
+                            elif isinstance(event, WaitEvent):
+                                async with self._uow:
+                                    await self._uow.session.update_status(self._session_id, SessionStatus.WAITING)
+                                return
 
-                    # 11.判断如果输入消息队列为空则跳出循环
-                    if not await task.input_stream.is_empty():
+                            if not await task.input_stream.is_empty():
+                                break
                         break
+                    except Exception as e:
+                        message_attempt += 1
+                        if self._is_transient_sandbox_error(e) and message_attempt <= 20 and original_event_str:
+                            await task.input_stream.put(original_event_str)
+                            if message_attempt == 1 or message_attempt % 5 == 0:
+                                await self._put_and_add_event(
+                                    task,
+                                    MessageEvent(role="assistant", message="沙箱短暂不可用，任务已进入重试队列并将自动继续…"),
+                                )
+                            await asyncio.sleep(self._get_retry_sleep_seconds(message_attempt))
+                            break
+                        raise
 
             # 12.更新会话状态为已完成
             async with self._uow:

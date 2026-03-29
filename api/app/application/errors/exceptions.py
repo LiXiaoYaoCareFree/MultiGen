@@ -16,7 +16,7 @@ class AppException(RuntimeError):
         self.status_code = status_code
         self.msg = msg
         self.data = data
-        super().__init__()
+        super().__init__(msg)
 
 
 class BadRequestError(AppException):
@@ -38,6 +38,13 @@ class ValidationError(AppException):
 
     def __init__(self, msg: str = "请求参数数据校验错误，请核实后重试"):
         super().__init__(status_code=422, code=422, msg=msg)
+
+
+class UnauthorizedError(AppException):
+    """鉴权失败错误"""
+
+    def __init__(self, msg: str = "鉴权失败，请先登录管理员账号"):
+        super().__init__(status_code=401, code=401, msg=msg)
 
 
 class TooManusRequestsError(AppException):

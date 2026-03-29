@@ -7,7 +7,6 @@ from typing import Optional, Self, BinaryIO
 
 import docker
 import httpx
-from async_lru import alru_cache
 from docker.errors import NotFound, APIError
 from docker.models.resource import Model
 
@@ -30,11 +29,11 @@ class DockerSandbox(Sandbox):
     ) -> None:
         """构造函数，完成Docker沙箱扩展创建"""
         self.client = httpx.AsyncClient(timeout=600)
-        self._ip = ip
+        self._ip = ip or "127.0.0.1"
         self._container_name = container_name
-        self._base_url = f"http://{ip}:8080"
-        self._vnc_url = f"ws://{ip}:5901"
-        self._cdp_url = f"http://{ip}:9222"
+        self._base_url = f"http://{self._ip}:8080"
+        self._vnc_url = f"ws://{self._ip}:5901"
+        self._cdp_url = f"http://{self._ip}:9222"
 
     @property
     def id(self) -> str:
@@ -52,13 +51,10 @@ class DockerSandbox(Sandbox):
         return self._cdp_url
 
     @classmethod
-    @alru_cache(maxsize=128, typed=True)
     async def _resolve_hostname_to_ip(cls, hostname: str) -> Optional[str]:
         """将docker容器主机/地址转换成ipv4格式数据"""
+        host_only = hostname.split(":")[0]
         try:
-            # 0.去除端口号（如 hostname:8080 -> hostname）
-            host_only = hostname.split(":")[0]
-
             # 1.首先解析传递的hostname是不是ip
             try:
                 socket.inet_pton(socket.AF_INET, host_only)
@@ -73,10 +69,9 @@ class DockerSandbox(Sandbox):
             if addr_info and len(addr_info) > 0:
                 return addr_info[0][4][0]
 
-            return None
         except Exception as e:
             logger.error(f"解析Docker容器主机地址{hostname}失败: {str(e)}")
-            return None
+        return host_only
 
     @classmethod
     def _get_container_ip(cls, container: Model) -> str:
@@ -229,12 +224,21 @@ class DockerSandbox(Sandbox):
     async def ensure_sandbox(self) -> None:
         """确保沙箱一定存在/服务全部都开启了才执行后续步骤"""
         # 1.定义最大重试次数+重试间隔
-        max_retries = 30
-        retry_interval = 2
+        max_retries = 10
+        retry_interval = 1
+        settings = get_settings()
 
         # 2.循环请求获取supervisor状态并判断服务是否正常
         for attempt in range(max_retries):
             try:
+                if settings.sandbox_address:
+                    resolved_ip = await self._resolve_hostname_to_ip(settings.sandbox_address)
+                    if resolved_ip and resolved_ip != self._ip:
+                        self._ip = resolved_ip
+                        self._base_url = f"http://{resolved_ip}:8080"
+                        self._vnc_url = f"ws://{resolved_ip}:5901"
+                        self._cdp_url = f"http://{resolved_ip}:9222"
+
                 # 3.调用client客户端向沙箱发起api请求获取状态
                 response = await self.client.get(f"{self._base_url}/api/supervisor/status")
                 response.raise_for_status()

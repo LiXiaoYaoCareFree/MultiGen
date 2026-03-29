@@ -53,6 +53,38 @@ class MCPClientManager:
         """只读属性，返回缓存的MCP工具参数声明，键就是服务名字，值就是服务对应的工具声明"""
         return self._tools
 
+    def _sanitize_tool_name(self, tool_name: str) -> str:
+        """清理工具名称，确保符合OpenAI命名规范: ^[a-zA-Z0-9_-]+$
+        
+        Args:
+            tool_name: 原始工具名称
+            
+        Returns:
+            清理后的工具名称，只包含字母、数字、下划线和连字符
+        """
+        import re
+        # 1. 移除所有不符合规范的字符
+        sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', tool_name)
+        
+        # 2. 确保名称不以数字开头（虽然不是严格必需，但保持一致性）
+        if sanitized and sanitized[0].isdigit():
+            sanitized = f"tool_{sanitized}"
+            
+        # 3. 确保名称长度合理（OpenAI限制为64字符）
+        if len(sanitized) > 64:
+            # 保留前缀和后缀，中间用哈希值替代
+            prefix = sanitized[:20]
+            suffix = sanitized[-20:]
+            import hashlib
+            hash_part = hashlib.md5(sanitized[20:-20].encode()).hexdigest()[:8]
+            sanitized = f"{prefix}_{hash_part}_{suffix}"
+            
+        # 4. 确保名称不为空
+        if not sanitized:
+            sanitized = "unnamed_tool"
+            
+        return sanitized
+
     async def initialize(self) -> None:
         """初始化函数，用于连接所有配置的MCP服务器"""
         # 1.检查下是否已经初始化成功
@@ -244,7 +276,10 @@ class MCPClientManager:
                 else:
                     tool_name = f"mcp_{server_name}_{tool.name}"
 
-                # 5.生成OpenAI工具描述
+                # 5.清理工具名称，确保符合OpenAI命名规范: ^[a-zA-Z0-9_-]+$
+                tool_name = self._sanitize_tool_name(tool_name)
+
+                # 6.生成OpenAI工具描述
                 tool_schema = {
                     "type": "function",
                     "function": {

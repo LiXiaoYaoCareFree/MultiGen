@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os.path
 import uuid
 from datetime import datetime
@@ -38,6 +39,7 @@ class CosFileStorage(FileStorage):
             _, file_extension = os.path.splitext(upload_file.filename)
             if not file_extension:
                 file_extension = ""
+            mime_type = upload_file.content_type or mimetypes.guess_type(upload_file.filename or "")[0] or "application/octet-stream"
 
             # 2.生成日期路径并拼接最终key
             date_path = datetime.now().strftime("%Y/%m/%d")
@@ -49,6 +51,7 @@ class CosFileStorage(FileStorage):
                 Bucket=self.bucket,
                 Body=upload_file.file,
                 Key=cos_key,
+                ContentType=mime_type,
             )
             logger.info(f"文件上传成功: {upload_file.filename} (ID: {file_id})")
 
@@ -58,7 +61,7 @@ class CosFileStorage(FileStorage):
                 filename=upload_file.filename,
                 key=cos_key,
                 extension=file_extension,
-                mime_type=upload_file.content_type or "",
+                mime_type=mime_type,
                 size=upload_file.size,
             )
             async with self._uow:

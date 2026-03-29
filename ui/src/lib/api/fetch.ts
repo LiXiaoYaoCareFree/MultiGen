@@ -1,4 +1,5 @@
 import type { ApiResponse } from "./types";
+import { getStoredAdminApiKey } from "@/lib/admin-auth";
 
 /**
  * API 配置
@@ -29,6 +30,15 @@ type RequestOptions = RequestInit & {
   timeout?: number;
   skipErrorHandler?: boolean;
 };
+
+function appendAdminAuthHeader(headers: HeadersInit): HeadersInit {
+  const merged = {...(headers as Record<string, string>)}
+  const adminApiKey = getStoredAdminApiKey()
+  if (adminApiKey) {
+    merged["X-Admin-Api-Key"] = adminApiKey
+  }
+  return merged
+}
 
 /**
  * 解析响应
@@ -130,13 +140,14 @@ export async function request<T = unknown>(
   if (fetchOptions.body instanceof FormData) {
     delete (mergedHeaders as Record<string, string>)["Content-Type"];
   }
+  const authHeaders = appendAdminAuthHeader(mergedHeaders)
 
   try {
     const response = await fetchWithTimeout(
       url,
       {
         ...fetchOptions,
-        headers: mergedHeaders,
+        headers: authHeaders,
       },
       timeout
     );
@@ -296,6 +307,7 @@ export async function createSSEStream(
     Accept: "text/event-stream",
     ...headers,
   };
+  const authHeaders = appendAdminAuthHeader(mergedHeaders)
 
   const controller = new AbortController();
   // 只对初始连接设置超时，连接建立后会清除
@@ -325,7 +337,7 @@ export async function createSSEStream(
     const response = await fetch(url, {
       ...fetchOptions,
       method: "POST",
-      headers: mergedHeaders,
+      headers: authHeaders,
       body: JSON.stringify(data),
       signal: controller.signal,
     });
@@ -478,4 +490,3 @@ function processSSEBuffer(
     processSSEEvent(event, onEvent, onError);
   }
 }
-

@@ -936,29 +936,80 @@ class MultimodalCore:
         try:
             if len(audio_files) < 2:
                 return ToolResult(success=False, message="至少需要2个音频文件")
-            try:
-                from pydub import AudioSegment
-            except Exception:
-                return ToolResult(success=False, message="未安装 pydub")
-            segs = []
+            file_paths: List[Path] = []
             for item in audio_files:
                 fp = self._local_path(item) if item.startswith("/storage/") else Path(item)
                 if not fp.exists():
                     return ToolResult(success=False, message=f"文件不存在: {item}")
-                segs.append(AudioSegment.from_file(str(fp)))
+                file_paths.append(fp)
+            try:
+                from pydub import AudioSegment
+            except Exception:
+                import wave
+
+                if any(fp.suffix.lower() != ".wav" for fp in file_paths):
+                    return ToolResult(success=False, message="未安装 pydub，且包含非wav文件，无法兼容拼接")
+                params = None
+                pieces: List[bytes] = []
+                total_frames = 0
+                for index, fp in enumerate(file_paths):
+                    with wave.open(str(fp), "rb") as wav_file:
+                        current = (
+                            wav_file.getnchannels(),
+                            wav_file.getsampwidth(),
+                            wav_file.getframerate(),
+                            wav_file.getcomptype(),
+                            wav_file.getcompname(),
+                        )
+                        if params is None:
+                            params = current
+                        elif current != params:
+                            return ToolResult(success=False, message=f"wav参数不一致，无法拼接: {fp.name}")
+                        frames = wav_file.readframes(wav_file.getnframes())
+                        pieces.append(frames)
+                        total_frames += wav_file.getnframes()
+                        if index < len(file_paths) - 1 and silence_duration > 0:
+                            silence_frames = int(current[2] * (silence_duration / 1000.0))
+                            silence_bytes = b"\x00" * silence_frames * current[0] * current[1]
+                            pieces.append(silence_bytes)
+                            total_frames += silence_frames
+                if not params:
+                    return ToolResult(success=False, message="无可拼接音频")
+                name = self._build_filename("concatenated", "", ".wav")
+                out_path = self.audios_dir / name
+                with wave.open(str(out_path), "wb") as output:
+                    output.setnchannels(params[0])
+                    output.setsampwidth(params[1])
+                    output.setframerate(params[2])
+                    output.setcomptype(params[3], params[4])
+                    output.writeframes(b"".join(pieces))
+                path = self._storage_url("audios", name)
+                return ToolResult(
+                    success=True,
+                    message="音频拼接成功(兼容模式，未启用交叉淡化)",
+                    data={
+                        "audio_url": path,
+                        "local_path": path,
+                        "duration_seconds": total_frames / params[2],
+                        "file_count": len(audio_files),
+                        "compat_mode": True,
+                        "crossfade_applied": False,
+                    },
+                )
+
+            segs = [AudioSegment.from_file(str(fp)) for fp in file_paths]
             merged = segs[0]
             for seg in segs[1:]:
                 if crossfade_duration > 0:
                     merged = merged.append(seg, crossfade=crossfade_duration)
+                elif silence_duration > 0:
+                    merged = merged + AudioSegment.silent(duration=silence_duration) + seg
                 else:
-                    if silence_duration > 0:
-                        merged = merged + AudioSegment.silent(duration=silence_duration) + seg
-                    else:
-                        merged = merged + seg
+                    merged = merged + seg
             name = self._build_filename("concatenated", "", ".wav")
             merged.export(str(self.audios_dir / name), format="wav")
             path = self._storage_url("audios", name)
-            return ToolResult(success=True, message="音频拼接成功", data={"audio_url": path, "local_path": path, "duration_seconds": len(merged) / 1000.0, "file_count": len(audio_files)})
+            return ToolResult(success=True, message="音频拼接成功", data={"audio_url": path, "local_path": path, "duration_seconds": len(merged) / 1000.0, "file_count": len(audio_files), "compat_mode": False, "crossfade_applied": crossfade_duration > 0})
         except Exception as e:
             return ToolResult(success=False, message=f"音频拼接失败: {e}")
 

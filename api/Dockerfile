@@ -4,8 +4,8 @@ FROM python:3.12-slim
 # 2.配置容器工作空间
 WORKDIR /app
 
-# 3.安装curl, 便于后续使用curl安装nodejs(Playwrigh需要安装nodejs作为中转连接)
-RUN apt-get update && apt-get install -y curl
+# 3.安装curl和ffmpeg
+RUN apt-get update && apt-get install -y curl ffmpeg
 
 # 4.安装v22版本的node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
@@ -20,6 +20,7 @@ ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 # 7.拷贝requirements.txt并安装依赖
 COPY requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
+RUN uv pip install --system --no-cache "pydub>=0.25.1"
 
 # 8.拷贝项目文件(忽略开发环境的库)
 COPY . .
