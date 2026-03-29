@@ -82,6 +82,8 @@ SQLALCHEMY_DATABASE_URI=postgresql+asyncpg://postgres:postgres@localhost:5432/ma
 REDIS_HOST=localhost
 REDIS_PORT=6379
 SANDBOX_ADDRESS=         # 留空则动态创建沙箱容器
+ADMIN_AUTH_REQUIRED=false
+ADMIN_API_KEY=
 ```
 
 ### 启动服务

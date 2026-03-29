@@ -77,7 +77,21 @@ export function FilePreviewPanel({ file, onClose }: FilePreviewPanelProps) {
     try {
       if (type === 'text') {
         const blob = await fileApi.downloadFile(fileId)
-        setContent(await blob.text())
+        const blobType = (blob.type || '').toLowerCase()
+        if (blobType.includes('application/pdf')) {
+          setPreviewUrl(URL.createObjectURL(blob))
+        } else if (
+          !blobType ||
+          blobType.startsWith('text/') ||
+          blobType.includes('json') ||
+          blobType.includes('xml') ||
+          blobType.includes('javascript') ||
+          blobType.includes('yaml')
+        ) {
+          setContent(await blob.text())
+        } else {
+          setError('当前文件不是可预览的文本格式，请下载后查看')
+        }
       } else if (type === 'image' || type === 'video' || type === 'audio' || type === 'pdf') {
         const blob = await fileApi.downloadFile(fileId)
         setPreviewUrl(URL.createObjectURL(blob))

@@ -75,12 +75,22 @@ function getCompactToolContent(tool: ToolEvent): unknown {
 
 function collectStorageUrls(value: unknown): string[] {
   const out = new Set<string>()
+  const addCandidate = (candidate: string) => {
+    if (!candidate) return
+    const trimmed = candidate.replace(/[),.;!?]+$/g, '')
+    const normalized = trimmed.startsWith('storage/') ? `/${trimmed}` : trimmed
+    if (normalized.startsWith('/storage/') || normalized.startsWith('http://') || normalized.startsWith('https://')) {
+      const resolved = resolveStorageUrl(normalized)
+      if (resolved.includes('/storage/')) out.add(resolved)
+    }
+  }
   const walk = (v: unknown) => {
     if (!v) return
     if (typeof v === 'string') {
-      if (v.startsWith('/storage/') || v.startsWith('http://') || v.startsWith('https://')) {
-        const resolved = resolveStorageUrl(v)
-        if (resolved.includes('/storage/')) out.add(resolved)
+      addCandidate(v)
+      const matches = v.match(/(?:https?:\/\/[^\s"'`<>]+|\/?storage\/[^\s"'`<>]+)/g)
+      if (matches) {
+        matches.forEach(addCandidate)
       }
       return
     }
@@ -192,7 +202,10 @@ function ShellPreview({ tool }: { tool: ToolEvent }) {
 
 function BrowserPreview({ tool, onOpenVNC }: { tool: ToolEvent; onOpenVNC?: () => void }) {
   const content = getToolContent(tool)
-  const screenshot = typeof content?.screenshot === 'string' ? content.screenshot : null
+  const screenshotRaw = typeof content?.screenshot === 'string' ? content.screenshot : null
+  const screenshot = screenshotRaw
+    ? resolveStorageUrl(screenshotRaw.startsWith('storage/') ? `/${screenshotRaw}` : screenshotRaw)
+    : null
   const url = getArg(tool.args, 'url', 'href', 'link')
 
   return (

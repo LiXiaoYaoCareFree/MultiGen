@@ -12,6 +12,7 @@ class LLMConfig(BaseModel):
     model_name: str = "deepseek-reasoner"  # 模型名字，默认使用deepseek-reasoner带推理的模型，传递tools会自动切换到deepseek-chat
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
     max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
+    max_prompt_tokens: int = Field(122000, ge=2048, le=131072)
 
 
 class AgentConfig(BaseModel):
@@ -45,6 +46,33 @@ class MCPServerConfig(BaseModel):
     headers: Optional[Dict[str, Any]] = None  # MCP服务请求头
 
     model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_mcp_server_config(cls, raw_data: Any):
+        if not isinstance(raw_data, dict):
+            return raw_data
+
+        data = dict(raw_data)
+        if not data.get("transport") and data.get("type"):
+            data["transport"] = data.get("type")
+
+        transport = data.get("transport")
+        if isinstance(transport, str):
+            normalized_transport = transport.strip().lower().replace("-", "_")
+            if normalized_transport in {"streamablehttp", "streamable_http"}:
+                data["transport"] = MCPTransport.STREAMABLE_HTTP
+            elif normalized_transport == "sse":
+                data["transport"] = MCPTransport.SSE
+            elif normalized_transport == "stdio":
+                data["transport"] = MCPTransport.STDIO
+
+        url = data.get("url")
+        if isinstance(url, str):
+            cleaned = url.strip().strip("`").strip().strip("\"'").strip()
+            data["url"] = cleaned
+
+        return data
 
     @model_validator(mode="after")
     def validate_mcp_server_config(self):

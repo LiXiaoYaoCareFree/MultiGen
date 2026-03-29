@@ -20,6 +20,7 @@ dependencies = [
     "openai>=1.107.2",
     "playwright>=1.56.0",
     "psycopg2-binary>=2.9.10",
+    "pydub>=0.25.1",
     "pydantic>=2.11.9",
     "pydantic-settings>=2.10.1",
     "redis>=6.4.0",

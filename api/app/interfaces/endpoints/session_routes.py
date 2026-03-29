@@ -12,6 +12,7 @@ from websockets import ConnectionClosed
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.agent_service import AgentService
 from app.application.services.session_service import SessionService
+from app.interfaces.middleware.admin_auth import require_admin_auth
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
@@ -25,7 +26,7 @@ from app.interfaces.schemas.session import (
 from app.interfaces.service_dependencies import get_session_service, get_agent_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/sessions", tags=["会话模块"])
+router = APIRouter(prefix="/sessions", tags=["会话模块"], dependencies=[Depends(require_admin_auth)])
 
 # 流式获取会话详情睡眠间隔
 SESSION_SLEEP_INTERVAL = 5

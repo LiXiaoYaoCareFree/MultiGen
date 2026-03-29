@@ -46,7 +46,13 @@ class Memory(BaseModel):
                     logger.debug(f"从记忆中移除对应工具的结果: {message['function_name']}")
 
             # 3.压缩记忆时reasoning_content内容可以去除压缩上下文
+            # 对于包含tool_calls的assistant消息，保留reasoning_content，避免DeepSeek工具链报错
             if "reasoning_content" in message:
+                if (
+                    self.get_message_role(message) == "assistant"
+                    and message.get("tool_calls")
+                ):
+                    continue
                 logger.debug(f"从记忆中移除工具思考结果: {message['reasoning_content'][:50]}...")
                 del message["reasoning_content"]
 

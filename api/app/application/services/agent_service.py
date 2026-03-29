@@ -187,11 +187,11 @@ class AgentService:
             # 11.从任务的输出流中读取数据
             while task and not task.done:
                 # 12.从输出消息队列中获取数据
-                event_id, event_str = await task.output_stream.get(start_id=latest_event_id, block_ms=0)
-                latest_event_id = event_id
+                event_id, event_str = await task.output_stream.get(start_id=latest_event_id, block_ms=500)
                 if event_str is None:
                     logger.debug(f"在会话[{session_id}]输出队列中未发现事件内容")
                     continue
+                latest_event_id = event_id
 
                 # 13.使用Pydantic提供的类型适配器将event_str转换为指定类实例
                 event = TypeAdapter(Event).validate_json(event_str)

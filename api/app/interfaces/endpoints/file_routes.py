@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import urllib.parse
 
 from fastapi import APIRouter, UploadFile, File, Depends
@@ -6,11 +7,12 @@ from starlette.responses import StreamingResponse
 
 from app.application.services.file_service import FileService
 from app.domain.models.file import File as FileInfo
+from app.interfaces.middleware.admin_auth import require_admin_auth
 from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_file_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/files", tags=["文件模块"])
+router = APIRouter(prefix="/files", tags=["文件模块"], dependencies=[Depends(require_admin_auth)])
 
 
 @router.post(
@@ -64,13 +66,15 @@ async def download_file(
 
     # 2.对文件中的中文名字进行url编码
     encoded_filename = urllib.parse.quote(fileinfo.filename)
+    media_type = fileinfo.mime_type or mimetypes.guess_type(fileinfo.filename)[0] or "application/octet-stream"
+    disposition = "inline" if media_type == "application/pdf" else "attachment"
 
     # 3.返回文件流数据
     return StreamingResponse(
         content=file_data,
-        media_type=fileinfo.mime_type,
+        media_type=media_type,
         headers={
-            "Content-Disposition": f"attachment; filename*=utf-8''{encoded_filename}",
+            "Content-Disposition": f"{disposition}; filename*=utf-8''{encoded_filename}",
             "Content-Length": str(fileinfo.size)
         }
     )

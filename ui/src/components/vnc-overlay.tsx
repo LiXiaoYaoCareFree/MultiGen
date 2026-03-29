@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { X, Loader2, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { VNCStatus } from '@/components/vnc-viewer'
+import { withAdminApiKeyQuery } from '@/lib/admin-auth'
 
 const VNCViewer = dynamic(
   () => import('@/components/vnc-viewer').then((m) => ({ default: m.VNCViewer })),
@@ -35,7 +36,7 @@ function buildVNCUrl(sessionId: string): string {
   }
 
   const protocol = isHttps ? 'wss:' : 'ws:'
-  return `${protocol}//${host}${pathname}/sessions/${sessionId}/vnc`
+  return withAdminApiKeyQuery(`${protocol}//${host}${pathname}/sessions/${sessionId}/vnc`)
 }
 
 export function VNCOverlay({ sessionId, onClose }: VNCOverlayProps) {
