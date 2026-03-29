@@ -165,4 +165,4 @@ cython_debug/
 logs/
 storage/
 Multimodal-Agent-platform/
-nginx/ssl/
+docker-business-data-export-20260329-053350.tar.gz
