@@ -40,6 +40,13 @@ class ValidationError(AppException):
         super().__init__(status_code=422, code=422, msg=msg)
 
 
+class UnauthorizedError(AppException):
+    """鉴权失败错误"""
+
+    def __init__(self, msg: str = "鉴权失败，请先登录管理员账号"):
+        super().__init__(status_code=401, code=401, msg=msg)
+
+
 class TooManusRequestsError(AppException):
     """请求过多错误（触发限流）"""
 

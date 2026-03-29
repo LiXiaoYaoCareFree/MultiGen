@@ -49,7 +49,7 @@ class SessionService:
         """根据传递的会话id删除任务会话"""
         # 1.验证管理员权限
         settings = get_settings()
-        if settings.admin_api_key and settings.admin_api_key != admin_api_key:
+        if not settings.admin_auth_required and settings.admin_api_key and settings.admin_api_key != admin_api_key:
             logger.warning(f"删除会话[{session_id}]失败: 管理员密钥无效")
             raise ServerRequestsError("无权限删除会话")
 

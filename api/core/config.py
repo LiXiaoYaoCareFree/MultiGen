@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     sandbox_no_proxy: Optional[str] = None
 
     # 管理员配置
+    admin_auth_required: bool = False
     admin_api_key: Optional[str] = None
 
     # 使用pydantic v2的写法来完成环境变量信息的告知

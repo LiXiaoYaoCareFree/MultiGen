@@ -103,6 +103,8 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: /api
+        NEXT_PUBLIC_ADMIN_LOGIN_REQUIRED: ${NEXT_PUBLIC_ADMIN_LOGIN_REQUIRED:-false}
+        NEXT_PUBLIC_ADMIN_PASSWORD: ${NEXT_PUBLIC_ADMIN_PASSWORD:-}
     container_name: multigen-ui
     restart: unless-stopped
     depends_on:

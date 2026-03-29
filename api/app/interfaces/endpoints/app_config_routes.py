@@ -11,13 +11,14 @@ from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
 from app.domain.services.tools.mcp import MCPClientManager
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
+from app.interfaces.middleware.admin_auth import require_admin_auth
 from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse, SuggestedQuestionsResponse
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
 from core.config import get_settings
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/app-config", tags=["设置模块"])
+router = APIRouter(prefix="/app-config", tags=["设置模块"], dependencies=[Depends(require_admin_auth)])
 settings = get_settings()
 
 

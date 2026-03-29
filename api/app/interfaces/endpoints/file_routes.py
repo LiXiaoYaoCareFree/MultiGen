@@ -7,11 +7,12 @@ from starlette.responses import StreamingResponse
 
 from app.application.services.file_service import FileService
 from app.domain.models.file import File as FileInfo
+from app.interfaces.middleware.admin_auth import require_admin_auth
 from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_file_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/files", tags=["文件模块"])
+router = APIRouter(prefix="/files", tags=["文件模块"], dependencies=[Depends(require_admin_auth)])
 
 
 @router.post(

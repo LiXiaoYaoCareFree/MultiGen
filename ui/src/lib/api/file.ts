@@ -1,5 +1,6 @@
 import { get, post } from "./fetch";
 import type { FileInfo, FileUploadParams } from "./types";
+import { getStoredAdminApiKey, withAdminApiKeyQuery } from "@/lib/admin-auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
 
@@ -49,7 +50,10 @@ export const fileApi = {
    * @returns Blob 对象
    */
   downloadFile: async (fileId: string): Promise<Blob> => {
-    const response = await fetch(`${getApiBaseUrl()}/files/${fileId}/download`);
+    const adminApiKey = getStoredAdminApiKey();
+    const response = await fetch(`${getApiBaseUrl()}/files/${fileId}/download`, {
+      headers: adminApiKey ? { "X-Admin-Api-Key": adminApiKey } : undefined,
+    });
 
     if (!response.ok) {
       throw new Error(`下载失败: ${response.statusText}`);
@@ -64,6 +68,6 @@ export const fileApi = {
    * @returns 文件下载 URL
    */
   getFileDownloadUrl: (fileId: string): string => {
-    return `${getApiBaseUrl()}/files/${fileId}/download`;
+    return withAdminApiKeyQuery(`${getApiBaseUrl()}/files/${fileId}/download`);
   },
 };
