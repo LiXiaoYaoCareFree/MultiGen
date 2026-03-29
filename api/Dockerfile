@@ -5,7 +5,10 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # 3.安装curl和ffmpeg
-RUN apt-get update && apt-get install -y curl ffmpeg
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources && \
+    apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update && \
+    apt-get install -y --no-install-recommends curl ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
 # 4.安装v22版本的node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
