@@ -17,7 +17,7 @@ class _DummyJSONParser:
 
 
 class _DummyLLM:
-    model_name = "deepseek-chat"
+    model_name = "deepseek-v4-flash"
     temperature = 0.7
     max_tokens = 384000
     max_prompt_tokens = 1000000
@@ -57,4 +57,3 @@ def test_context_overflow_target_uses_new_window() -> None:
     assert result is True
     assert captured["reason"] == "context_overflow"
     assert captured["target"] == 607600
-

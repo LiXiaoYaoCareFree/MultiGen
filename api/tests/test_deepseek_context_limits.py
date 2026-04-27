@@ -6,7 +6,7 @@ def test_llm_config_deepseek_limits() -> None:
     config = LLMConfig(
         base_url="https://api.deepseek.com",
         api_key="test",
-        model_name="deepseek-chat",
+        model_name="deepseek-v4-flash",
         max_tokens=384000,
         max_prompt_tokens=1000000,
     )
@@ -19,7 +19,7 @@ def test_openai_llm_uses_updated_defaults() -> None:
         LLMConfig(
             base_url="https://api.deepseek.com",
             api_key="test",
-            model_name="deepseek-chat",
+            model_name="deepseek-v4-flash",
             max_tokens=384000,
             max_prompt_tokens=1000000,
         ),
@@ -27,4 +27,3 @@ def test_openai_llm_uses_updated_defaults() -> None:
     assert llm.max_tokens == 384000
     assert llm.max_prompt_tokens == 1000000
     assert llm.get_safe_prompt_token_limit() >= 16800
-

@@ -81,7 +81,7 @@ def main() -> None:
         LLMConfig(
             base_url="https://api.deepseek.com",
             api_key="benchmark",
-            model_name="deepseek-chat",
+            model_name="deepseek-v4-flash",
             max_tokens=8192,
             max_prompt_tokens=122000,
         ),
@@ -90,7 +90,7 @@ def main() -> None:
         LLMConfig(
             base_url="https://api.deepseek.com",
             api_key="benchmark",
-            model_name="deepseek-chat",
+            model_name="deepseek-v4-flash",
             max_tokens=384000,
             max_prompt_tokens=1000000,
         ),

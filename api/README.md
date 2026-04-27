@@ -95,6 +95,13 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 服务启动后访问 `http://localhost:8000/docs` 查看 API 文档。
 
+### DeepSeek Thinking 模式说明
+
+- 默认模型建议使用 `deepseek-v4-flash`。
+- Thinking 模式下，若 assistant 发生了工具调用，则该轮 `reasoning_content` 在后续请求中必须回传。
+- Thinking 模式下，若 assistant 未发生工具调用，则该轮 `reasoning_content` 即使回传也会被 API 忽略；为兼容历史链路，项目默认保留回传。
+- 项目已在消息拼接层增加兼容逻辑：当历史消息缺失 `reasoning_content` 时，会降级移除损坏的 `tool_calls` 链路，避免请求直接 400 失败。
+
 ### 数据库迁移
 
 ```bash

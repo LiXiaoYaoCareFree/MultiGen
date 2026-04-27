@@ -29,7 +29,7 @@ class BaseAgent(ABC):
     _retry_interval: float = 1.0  # 重试间隔
     _tool_choice: Optional[str] = None  # 强制选择工具
     _summary_prefix: str = "[历史摘要]"
-    _deepseek_reasoning_models = {"deepseek-v4-pro", "deepseek-v4-flash"}
+    _deepseek_reasoning_models = {"deepseek-v4-flash"}
 
     def __init__(
             self,
@@ -119,6 +119,24 @@ class BaseAgent(ABC):
         hint = ", ".join(available_names[:12])
         raise ValueError(f"未知工具: {tool_name}。可用工具示例: {hint}")
 
+    @staticmethod
+    def _has_valid_reasoning_content(value: Any) -> bool:
+        return isinstance(value, str) and bool(value.strip())
+
+    @staticmethod
+    def _contains_tool_messages(messages: List[Dict[str, Any]]) -> bool:
+        for message in messages:
+            role = message.get("role")
+            if role == "tool":
+                return True
+            if role == "assistant" and message.get("tool_calls"):
+                return True
+        return False
+
+    @staticmethod
+    def _request_contains_tool_results(messages: List[Dict[str, Any]]) -> bool:
+        return any(message.get("role") == "tool" for message in messages)
+
     async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Dict[str, Any]:
         """调用语言模型并处理记忆内容"""
         # 1.将消息添加到记忆中
@@ -166,14 +184,14 @@ class BaseAgent(ABC):
                     # 6.取出非空消息并处理工具调用(兼容DeepSeek思考模型的写法)
                     filtered_message = {"role": "assistant", "content": message.get("content")}
                     if message.get("tool_calls"):
-                        # DeepSeek thinking + tool calls 要求回传 reasoning_content（v4-pro 文档要求）
+                        # DeepSeek thinking + tool calls 要求回传 reasoning_content（官方文档要求）
                         reasoning_content = message.get("reasoning_content")
-                        if self._is_deepseek_reasoning_model() and not isinstance(reasoning_content, str):
-                            raise RuntimeError(
-                                "DeepSeek thinking 模式工具调用缺少 reasoning_content，无法继续回传上下文"
-                            )
-                        if "reasoning_content" in message:
-                            filtered_message["reasoning_content"] = reasoning_content
+                        if self._is_deepseek_reasoning_model() and not self._has_valid_reasoning_content(reasoning_content):
+                            error = "DeepSeek工具调用响应缺少有效 reasoning_content"
+                            logger.error("%s: model=%s", error, self._llm.model_name)
+                            await asyncio.sleep(self._retry_interval)
+                            continue
+                        filtered_message["reasoning_content"] = reasoning_content
                         filtered_message["tool_calls"] = message.get("tool_calls")
                         logger.info(
                             "记录assistant工具调用消息: model=%s has_reasoning_content=%s tool_calls=%d",
@@ -181,7 +199,11 @@ class BaseAgent(ABC):
                             "reasoning_content" in filtered_message,
                             len(message.get("tool_calls") or []),
                         )
-                    elif message.get("reasoning_content"):
+                    elif (
+                        self._is_deepseek_reasoning_model()
+                        and self._request_contains_tool_results(messages)
+                        and self._has_valid_reasoning_content(message.get("reasoning_content"))
+                    ):
                         filtered_message["reasoning_content"] = message.get("reasoning_content")
                 else:
                     # 8.非AI消息则记录日志并存储message
@@ -219,16 +241,10 @@ class BaseAgent(ABC):
             if not pending_assistant_message:
                 return
             is_complete = pending_tool_call_ids.issubset(pending_tool_call_seen_ids)
-            if is_complete:
-                llm_messages.append(pending_assistant_message)
-                llm_messages.extend(pending_tool_messages)
-            else:
-                pending_assistant_message.pop("tool_calls", None)
-                llm_messages.append(pending_assistant_message)
-                logger.warning(
-                    "检测到assistant/tool链路不完整，已移除tool_calls后发送: "
-                    f"expect={len(pending_tool_call_ids)} seen={len(pending_tool_call_seen_ids)}"
-                )
+            if not is_complete:
+                raise RuntimeError("检测到不完整的 assistant/tool 调用链，无法继续拼接 DeepSeek thinking 上下文")
+            llm_messages.append(pending_assistant_message)
+            llm_messages.extend(pending_tool_messages)
             pending_assistant_message = None
             pending_tool_call_ids = set()
             pending_tool_call_seen_ids = set()
@@ -252,6 +268,10 @@ class BaseAgent(ABC):
                         valid_tool_calls.append(item)
 
                 if valid_tool_calls:
+                    if requires_reasoning and not self._has_valid_reasoning_content(copied.get("reasoning_content")):
+                        raise RuntimeError(
+                            f"DeepSeek工具调用链路缺少有效 reasoning_content，model={self._llm.model_name}"
+                        )
                     copied["tool_calls"] = valid_tool_calls
                     pending_assistant_message = copied
                     pending_tool_call_ids = {
@@ -259,10 +279,6 @@ class BaseAgent(ABC):
                     }
                     pending_tool_call_seen_ids = set()
                     pending_tool_messages = []
-                    if requires_reasoning and "reasoning_content" not in pending_assistant_message:
-                        raise RuntimeError(
-                            f"DeepSeek工具调用链路缺少 reasoning_content，model={self._llm.model_name}"
-                        )
                 else:
                     copied.pop("tool_calls", None)
                     llm_messages.append(copied)
@@ -276,8 +292,7 @@ class BaseAgent(ABC):
                     or not pending_assistant_message
                     or tool_call_id not in pending_tool_call_ids
                 ):
-                    logger.warning(f"跳过无效tool消息，未匹配到前置tool_calls: {tool_call_id}")
-                    continue
+                    raise RuntimeError(f"检测到孤立的 tool 消息，未匹配到前置 tool_calls: {tool_call_id}")
                 if copied.get("content") is None:
                     copied["content"] = ""
                 pending_tool_messages.append(copied)
@@ -288,7 +303,46 @@ class BaseAgent(ABC):
             llm_messages.append(copied)
 
         flush_pending_assistant()
-        return llm_messages
+        if not self._is_deepseek_reasoning_model():
+            return llm_messages
+        return self._normalize_deepseek_turn_reasoning(llm_messages)
+
+    def _normalize_deepseek_turn_reasoning(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        current_turn: List[Dict[str, Any]] = []
+        current_turn_has_tool_use = False
+
+        def flush_turn() -> None:
+            nonlocal current_turn, current_turn_has_tool_use
+            if not current_turn:
+                return
+            for message in current_turn:
+                copied = dict(message)
+                if copied.get("role") == "assistant" and not current_turn_has_tool_use:
+                    copied.pop("reasoning_content", None)
+                normalized.append(copied)
+            current_turn = []
+            current_turn_has_tool_use = False
+
+        for message in messages:
+            role = message.get("role")
+            if role == "system":
+                flush_turn()
+                normalized.append(dict(message))
+                continue
+            if role == "user":
+                flush_turn()
+                current_turn = [dict(message)]
+                current_turn_has_tool_use = False
+                continue
+            current_turn.append(dict(message))
+            if role == "tool":
+                current_turn_has_tool_use = True
+            elif role == "assistant" and message.get("tool_calls"):
+                current_turn_has_tool_use = True
+
+        flush_turn()
+        return normalized
 
     def _is_deepseek_reasoning_model(self) -> bool:
         model_name = (self._llm.model_name or "").strip().lower()
@@ -437,6 +491,10 @@ class BaseAgent(ABC):
         if not self._memory or len(self._memory.messages) <= 2:
             return False
 
+        if self._is_deepseek_reasoning_model() and self._contains_tool_messages(self._memory.get_messages()):
+            logger.warning("DeepSeek thinking 工具会话禁止执行有损压缩，以避免破坏 reasoning_content/tool_calls 链路")
+            return False
+
         self._memory.compact()
         messages = self._memory.get_messages()
         if self._estimate_total_tokens(messages) <= target_prompt_tokens:
@@ -569,6 +627,9 @@ class BaseAgent(ABC):
     async def compact_memory(self) -> None:
         """压缩Agent的记忆"""
         await self._ensure_memory()
+        if self._is_deepseek_reasoning_model() and self._contains_tool_messages(self._memory.get_messages()):
+            logger.info("DeepSeek thinking 工具会话跳过 compact_memory，保持文档要求的完整上下文")
+            return
         self._memory.compact()
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, self.name, self._memory)

@@ -93,7 +93,7 @@ mooc-manus/
   llm_config:
     base_url: https://api.deepseek.com/
     api_key: YOUR_DEEPSEEK_API_KEY
-    model_name: deepseek-v4-pro
+    model_name: deepseek-v4-flash
     temperature: 0.7
     max_tokens: 8192
   agent_config:

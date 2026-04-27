@@ -3,6 +3,7 @@
 将错误日志记录到 logs/sessions/{MM-DD}/{会话标题}.log 文件中
 """
 import logging
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -10,7 +11,27 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-LOG_DIR = Path("/app/logs/sessions")
+def _resolve_session_log_dir() -> Path:
+    env_dir = os.getenv("SESSION_LOG_DIR") or os.getenv("LOG_SESSION_DIR")
+    if env_dir:
+        return Path(env_dir)
+
+    project_root = Path(__file__).resolve().parents[3]
+    candidates = [
+        Path("/app/logs/sessions"),
+        project_root / "logs" / "sessions",
+        Path.cwd() / "logs" / "sessions",
+    ]
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except Exception:
+            continue
+    return project_root / "logs" / "sessions"
+
+
+LOG_DIR = _resolve_session_log_dir()
 
 
 def sanitize_filename(filename: str) -> str:
@@ -61,7 +82,11 @@ def write_session_error_log(
     ensure_log_dir()
     timestamp_dt = datetime.now()
     daily_log_dir = get_daily_log_dir(timestamp_dt)
-    daily_log_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        daily_log_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.warning(f"无法创建会话日志目录[{daily_log_dir}]: {e}")
+        return None
 
     safe_title = sanitize_filename(session_title)
     log_file = daily_log_dir / f"{safe_title}.log"

@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
-import { Download, FileSearchCorner, FileText } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, FileSearchCorner, FileText, Folder } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,13 @@ import { toast } from 'sonner'
 import type { SessionFile } from '@/lib/api/types'
 import { sessionFileToAttachment } from '@/lib/session-events'
 import type { AttachmentFile } from '@/lib/session-events'
+
+type FileTreeNode = {
+  name: string
+  path: string
+  folders: FileTreeNode[]
+  files: SessionFile[]
+}
 
 function formatDisplayFilename(filename: string, keepChars = 40): string {
   const name = (filename || '').trim()
@@ -84,24 +91,62 @@ export function SessionHeader({
   }, [isControlled, onFileListOpenChange, onFetchFiles])
 
   const fileList = Array.isArray(files) ? files : []
-  
+
   // 对相同 filepath 的文件进行去重，保留最新的（数组中最后一个）
-  const uniqueFileList = fileList.reduce((acc, file) => {
-    // 使用 filepath 作为去重的 key，如果为空则使用 filename
-    const key = file.filepath || file.filename
-    const existingIndex = acc.findIndex(f => (f.filepath || f.filename) === key)
-    
-    if (existingIndex >= 0) {
-      // 如果已存在，替换为当前文件（保留最新的）
-      acc[existingIndex] = file
-    } else {
-      // 如果不存在，添加到结果中
-      acc.push(file)
+  const uniqueFileList = useMemo(() => {
+    return fileList.reduce((acc, file) => {
+      const key = file.filepath || file.filename
+      const existingIndex = acc.findIndex(f => (f.filepath || f.filename) === key)
+
+      if (existingIndex >= 0) {
+        acc[existingIndex] = file
+      } else {
+        acc.push(file)
+      }
+
+      return acc
+    }, [] as SessionFile[])
+  }, [fileList])
+
+  const buildFileTree = useCallback((items: SessionFile[]): FileTreeNode => {
+    const root: FileTreeNode = { name: '', path: '', folders: [], files: [] }
+
+    const ensureFolder = (parent: FileTreeNode, name: string, path: string) => {
+      const existing = parent.folders.find((folder) => folder.path === path)
+      if (existing) return existing
+      const created: FileTreeNode = { name, path, folders: [], files: [] }
+      parent.folders.push(created)
+      parent.folders.sort((a, b) => a.name.localeCompare(b.name))
+      return created
     }
-    
-    return acc
-  }, [] as SessionFile[])
-  
+
+    items.forEach((file) => {
+      const rawPath = (file.filepath || file.filename || '').replace(/\\/g, '/').trim()
+      const normalizedPath = rawPath.replace(/^\/+/, '')
+      const segments = normalizedPath.split('/').filter(Boolean)
+      const fallbackName = file.filename || '未命名文件'
+      const filename = segments.length > 0 ? segments[segments.length - 1] : fallbackName
+      const folderSegments = segments.length > 1 ? segments.slice(0, -1) : []
+
+      let current = root
+      let currentPath = ''
+      folderSegments.forEach((segment) => {
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment
+        current = ensureFolder(current, segment, currentPath)
+      })
+
+      current.files.push({
+        ...file,
+        filename,
+      })
+      current.files.sort((a, b) => a.filename.localeCompare(b.filename))
+    })
+
+    return root
+  }, [])
+
+  const fileTree = useMemo(() => buildFileTree(uniqueFileList), [buildFileTree, uniqueFileList])
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
   const handleDownload = useCallback(async (file: SessionFile, e: React.MouseEvent) => {
@@ -138,6 +183,102 @@ export function SessionHeader({
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (!openState) return
+    setExpandedFolders((prev) => {
+      const next = { ...prev }
+      let changed = false
+      const visit = (node: FileTreeNode, depth: number) => {
+        node.folders.forEach((folder) => {
+          if (prev[folder.path] === undefined) {
+            next[folder.path] = depth < 2
+            changed = true
+          }
+          visit(folder, depth + 1)
+        })
+      }
+      visit(fileTree, 0)
+      return changed ? next : prev
+    })
+  }, [fileTree, openState])
+
+  const toggleFolder = useCallback((path: string) => {
+    setExpandedFolders((prev) => ({
+      ...prev,
+      [path]: !prev[path],
+    }))
+  }, [])
+
+  const renderTree = useCallback((node: FileTreeNode, depth = 0) => {
+    const folderItems = node.folders.map((folder) => {
+      const isExpanded = expandedFolders[folder.path] ?? depth < 1
+      const nestedCount = folder.files.length + folder.folders.length
+      return (
+        <div key={folder.path} className="flex flex-col gap-1">
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+            style={{ paddingLeft: `${depth * 16 + 8}px` }}
+            onClick={() => toggleFolder(folder.path)}
+          >
+            {isExpanded ? <ChevronDown className="size-4 text-gray-500" /> : <ChevronRight className="size-4 text-gray-500" />}
+            <Folder className="size-4 text-amber-500" />
+            <span className="flex-1 truncate">{folder.name}</span>
+            <span className="text-xs text-gray-400">{nestedCount}</span>
+          </button>
+          {isExpanded ? renderTree(folder, depth + 1) : null}
+        </div>
+      )
+    })
+
+    const fileItems = node.files.map((file) => (
+      <Item
+        key={file.id}
+        variant="default"
+        className="p-2 w-full min-w-0 gap-2 cursor-pointer hover:bg-gray-100 border-0 shadow-none"
+        style={{ paddingLeft: `${depth * 16 + 28}px` }}
+        onClick={() => handleFileItemClick(file)}
+      >
+        <ItemMedia>
+          <Avatar className="size-8">
+            <AvatarGroupCount>
+              <FileText />
+            </AvatarGroupCount>
+          </Avatar>
+        </ItemMedia>
+        <ItemContent className="gap-0 min-w-0">
+          <ItemTitle className="text-sm text-gray-700 w-full min-w-0">
+            <span className="block w-full truncate">
+              {formatDisplayFilename(file.filename)}
+            </span>
+          </ItemTitle>
+          <ItemDescription className="text-xs">
+            {file.extension.replace(/^\./, '')} · {formatFileSize(file.size)}
+          </ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="cursor-pointer"
+            onClick={(e) => handleDownload(file, e)}
+            disabled={downloadingId === file.id}
+            aria-label={`下载 ${file.filename}`}
+          >
+            <Download />
+          </Button>
+        </ItemActions>
+      </Item>
+    ))
+
+    return (
+      <div className="flex flex-col gap-1">
+        {folderItems}
+        {fileItems}
+      </div>
+    )
+  }, [downloadingId, expandedFolders, handleDownload, handleFileItemClick, toggleFolder])
+
   return (
     <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
       {(!open || isMobile) && <SidebarTrigger className="cursor-pointer flex-shrink-0" />}
@@ -156,48 +297,16 @@ export function SessionHeader({
                 <DialogTitle>此任务中的所有文件</DialogTitle>
               </DialogHeader>
               <ScrollArea className="h-[500px]">
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
                   {uniqueFileList.length === 0 ? (
                     <p className="text-sm text-gray-500 py-4">暂无文件</p>
                   ) : (
-                    uniqueFileList.map((file) => (
-                      <Item
-                        key={file.id}
-                        variant="default"
-                        className="p-2 w-full min-w-0 gap-2 cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleFileItemClick(file)}
-                      >
-                        <ItemMedia>
-                          <Avatar className="size-8">
-                            <AvatarGroupCount>
-                              <FileText />
-                            </AvatarGroupCount>
-                          </Avatar>
-                        </ItemMedia>
-                        <ItemContent className="gap-0 min-w-0">
-                          <ItemTitle className="text-sm text-gray-700 w-full min-w-0">
-                            <span className="block w-full truncate">
-                              {formatDisplayFilename(file.filename)}
-                            </span>
-                          </ItemTitle>
-                          <ItemDescription className="text-xs">
-                            {file.extension.replace(/^\./, '')} · {formatFileSize(file.size)}
-                          </ItemDescription>
-                        </ItemContent>
-                        <ItemActions>
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            className="cursor-pointer"
-                            onClick={(e) => handleDownload(file, e)}
-                            disabled={downloadingId === file.id}
-                            aria-label={`下载 ${file.filename}`}
-                          >
-                            <Download />
-                          </Button>
-                        </ItemActions>
-                      </Item>
-                    ))
+                    <>
+                      <div className="px-2 pb-1 text-xs text-gray-500">
+                        共 {uniqueFileList.length} 个文件
+                      </div>
+                      {renderTree(fileTree)}
+                    </>
                   )}
                 </div>
               </ScrollArea>

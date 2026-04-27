@@ -36,6 +36,10 @@ class OpenAILLM(LLM):
         self._default_offset = 4200
         self._default_reserved_tokens = 16800
 
+    def _is_deepseek_reasoning_model(self) -> bool:
+        model_name = self._model_name.strip().lower()
+        return model_name.startswith("deepseek-v4")
+
     @property
     def model_name(self) -> str:
         return self._model_name
@@ -197,31 +201,32 @@ class OpenAILLM(LLM):
                 f"request_max_tokens={request_max_tokens} context_limit={context_limit}"
             )
 
+            request_kwargs = {
+                "model": self._model_name,
+                "max_tokens": request_max_tokens,
+                "messages": messages,
+                "response_format": response_format,
+                "timeout": self._timeout,
+            }
+            if self._is_deepseek_reasoning_model():
+                request_kwargs["reasoning_effort"] = "high"
+                request_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+            else:
+                request_kwargs["temperature"] = self._temperature
+
             # 1.检测是否传递了工具列表
             if tools:
                 logger.info(f"调用OpenAI客户端向LLM发起请求并携带工具信息: {self._model_name}")
                 response = await self._client.chat.completions.create(
-                    model=self._model_name,
-                    temperature=self._temperature,
-                    max_tokens=request_max_tokens,
-                    messages=messages,
-                    response_format=response_format,
                     tools=tools,
                     tool_choice=tool_choice,
                     parallel_tool_calls=False,  # 关闭并行工具调用(deepseek没有这个参数的)
-                    timeout=self._timeout,
+                    **request_kwargs,
                 )
             else:
                 # 2.为传递工具则删除tools/tool_choice等参数
                 logger.info(f"调用OpenAI客户端向LLM发起请求未携带: {self._model_name}")
-                response = await self._client.chat.completions.create(
-                    model=self._model_name,
-                    temperature=self._temperature,
-                    max_tokens=request_max_tokens,
-                    messages=messages,
-                    response_format=response_format,
-                    timeout=self._timeout,
-                )
+                response = await self._client.chat.completions.create(**request_kwargs)
 
             # 3.处理响应数据并返回
             logger.info(f"OpenAI客户端返回内容: {response.model_dump()}")
@@ -271,7 +276,7 @@ if __name__ == "__main__":
         llm = OpenAILLM(LLMConfig(
             base_url="https://api.deepseek.com",
             api_key="",
-            model_name="deepseek-chat",
+            model_name="deepseek-v4-flash",
         ))
         response = await llm.invoke([{"role": "user", "content": "Hi"}])
         print(response)

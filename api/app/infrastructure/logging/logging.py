@@ -1,11 +1,31 @@
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from core.config import get_settings
 
-LOG_ROOT_DIR = Path("/app/logs/project")
+def _resolve_log_root_dir() -> Path:
+    env_dir = os.getenv("LOG_ROOT_DIR")
+    if env_dir:
+        return Path(env_dir)
+    project_root = Path(__file__).resolve().parents[4]
+    candidates = [
+        Path("/app/logs/project"),
+        project_root / "logs" / "project",
+        Path.cwd() / "logs" / "project",
+    ]
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except Exception:
+            continue
+    return project_root / "logs" / "project"
+
+
+LOG_ROOT_DIR = _resolve_log_root_dir()
 
 
 class DailyFolderFileHandler(logging.Handler):

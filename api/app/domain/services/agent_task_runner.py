@@ -2,6 +2,7 @@ import asyncio
 import io
 import logging
 import mimetypes
+import re
 import uuid
 from pathlib import Path
 from typing import List, AsyncGenerator, Callable, BinaryIO, Any, Optional, Dict, Tuple
@@ -253,6 +254,69 @@ class AgentTaskRunner(TaskRunner):
             if normalized:
                 paths.append(normalized)
         return list(dict.fromkeys(paths))
+
+    @staticmethod
+    def _extract_referenced_filenames(text: str) -> List[str]:
+        if not text:
+            return []
+        pattern = r"([A-Za-z0-9_\-\u4e00-\u9fff]+\.[A-Za-z0-9]{1,12})"
+        names = re.findall(pattern, text)
+        return list(dict.fromkeys(names))
+
+    @staticmethod
+    def _wants_previous_artifacts(text: str) -> bool:
+        if not text:
+            return False
+        lowered = text.lower()
+        hints = (
+            "最终报告", "报告里", "这个文件", "该文件", "同一个对话", "上下文",
+            "继续", "刚刚", "上一步", "上个步骤", "final report", "same conversation",
+        )
+        return any(hint in text or hint in lowered for hint in hints)
+
+    async def _collect_context_attachments(self, event: MessageEvent, message_text: str) -> List[str]:
+        """为当前轮消息补充同会话历史文件路径，提升跨轮次上下文检索能力。"""
+        # 1) 用户显式上传的附件优先
+        merged: List[str] = []
+        if event.attachments:
+            for attachment in event.attachments:
+                filepath = getattr(attachment, "filepath", None)
+                if isinstance(filepath, str) and filepath:
+                    merged.append(filepath)
+
+        # 2) 拉取会话内已登记文件，按最近顺序匹配用户提到的文件名
+        session_files: List[File] = []
+        async with self._uow:
+            session = await self._uow.session.get_by_id(self._session_id)
+            if session and session.files:
+                session_files = list(session.files)
+
+        if not session_files:
+            return list(dict.fromkeys(merged))
+
+        referenced = self._extract_referenced_filenames(message_text)
+        if referenced:
+            referenced_set = {name.lower() for name in referenced}
+            for file in reversed(session_files):
+                filepath = getattr(file, "filepath", "") or ""
+                basename = filepath.split("/")[-1].lower()
+                if basename in referenced_set:
+                    merged.append(filepath)
+
+        # 3) 若用户明显在引用历史产物但未写清文件名，则兜底注入最近3个文本类文件
+        if not referenced and self._wants_previous_artifacts(message_text):
+            allow_ext = {".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".py", ".log"}
+            picked = 0
+            for file in reversed(session_files):
+                filepath = getattr(file, "filepath", "") or ""
+                ext = "." + filepath.split(".")[-1].lower() if "." in filepath else ""
+                if ext in allow_ext:
+                    merged.append(filepath)
+                    picked += 1
+                if picked >= 3:
+                    break
+
+        return list(dict.fromkeys(merged))
 
     async def _sync_local_storage_file_to_storage(self, storage_path: str) -> Optional[File]:
         try:
@@ -554,7 +618,7 @@ class AgentTaskRunner(TaskRunner):
                 # 5.将消息事件转换称消息对象
                 message_obj = Message(
                     message=message,
-                    attachments=[attachment.filepath for attachment in event.attachments]
+                    attachments=await self._collect_context_attachments(event, message)
                 )
 
                 # 6.传递消息对象并运行PlannerReActFlow
@@ -617,13 +681,21 @@ class AgentTaskRunner(TaskRunner):
                     session = await self._uow.session.get_by_id(self._session_id)
                     if session:
                         session_title = session.title
-                if session_title:
-                    import traceback
+                import traceback
+                stack_trace = traceback.format_exc()
+                write_session_error_log(
+                    session_title=session_title or self._session_id,
+                    error_type="AgentTaskRunner",
+                    error_message=str(e),
+                    stack_trace=stack_trace,
+                )
+                # 同步写入session_id日志，避免因会话标题变化导致排障时找不到对应文件。
+                if session_title and session_title != self._session_id:
                     write_session_error_log(
-                        session_title=session_title,
+                        session_title=self._session_id,
                         error_type="AgentTaskRunner",
-                        error_message=str(e),
-                        stack_trace=traceback.format_exc()
+                        error_message=f"[title={session_title}] {str(e)}",
+                        stack_trace=stack_trace,
                     )
             except Exception:
                 pass
