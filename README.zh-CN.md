@@ -52,7 +52,7 @@ mooc-manus/
    llm_config:
      base_url: https://api.deepseek.com/
      api_key: your_api_key_here
-     model_name: deepseek-reasoner
+    model_name: deepseek-v4-pro
    ```
 
 3. **启动所有服务**

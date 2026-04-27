@@ -9,7 +9,7 @@ class LLMConfig(BaseModel):
     """LLM提供商配置"""
     base_url: HttpUrl = "https://api.deepseek.com"  # 模型基础URL地址
     api_key: str = ""  # 模型API秘钥
-    model_name: str = "deepseek-reasoner"  # 模型名字，默认使用deepseek-reasoner带推理的模型，传递tools会自动切换到deepseek-chat
+    model_name: str = "deepseek-v4-pro"  # 模型名字，默认使用deepseek-v4-pro带推理的模型，传递tools会自动切换到deepseek-chat
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
     max_tokens: int = Field(384000, ge=0)  # 最大输出token数
     max_prompt_tokens: int = Field(1000000, ge=16800, le=1000000)

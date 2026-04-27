@@ -29,6 +29,7 @@ class BaseAgent(ABC):
     _retry_interval: float = 1.0  # 重试间隔
     _tool_choice: Optional[str] = None  # 强制选择工具
     _summary_prefix: str = "[历史摘要]"
+    _deepseek_reasoning_models = {"deepseek-v4-pro", "deepseek-v4-flash"}
 
     def __init__(
             self,
@@ -164,10 +165,24 @@ class BaseAgent(ABC):
 
                     # 6.取出非空消息并处理工具调用(兼容DeepSeek思考模型的写法)
                     filtered_message = {"role": "assistant", "content": message.get("content")}
-                    if message.get("reasoning_content"):
-                        filtered_message["reasoning_content"] = message.get("reasoning_content")
                     if message.get("tool_calls"):
+                        # DeepSeek thinking + tool calls 要求回传 reasoning_content（v4-pro 文档要求）
+                        reasoning_content = message.get("reasoning_content")
+                        if self._is_deepseek_reasoning_model() and not isinstance(reasoning_content, str):
+                            raise RuntimeError(
+                                "DeepSeek thinking 模式工具调用缺少 reasoning_content，无法继续回传上下文"
+                            )
+                        if "reasoning_content" in message:
+                            filtered_message["reasoning_content"] = reasoning_content
                         filtered_message["tool_calls"] = message.get("tool_calls")
+                        logger.info(
+                            "记录assistant工具调用消息: model=%s has_reasoning_content=%s tool_calls=%d",
+                            self._llm.model_name,
+                            "reasoning_content" in filtered_message,
+                            len(message.get("tool_calls") or []),
+                        )
+                    elif message.get("reasoning_content"):
+                        filtered_message["reasoning_content"] = message.get("reasoning_content")
                 else:
                     # 8.非AI消息则记录日志并存储message
                     logger.warning(f"LLM响应内容无法确认消息角色: {message.get('role')}")
@@ -193,7 +208,7 @@ class BaseAgent(ABC):
 
     def _build_llm_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         llm_messages: List[Dict[str, Any]] = []
-        requires_reasoning = self._llm.model_name.strip().lower() == "deepseek-reasoner"
+        requires_reasoning = self._is_deepseek_reasoning_model()
         pending_assistant_message: Optional[Dict[str, Any]] = None
         pending_tool_call_ids: set[str] = set()
         pending_tool_call_seen_ids: set[str] = set()
@@ -244,8 +259,10 @@ class BaseAgent(ABC):
                     }
                     pending_tool_call_seen_ids = set()
                     pending_tool_messages = []
-                    if requires_reasoning:
-                        pending_assistant_message.setdefault("reasoning_content", "")
+                    if requires_reasoning and "reasoning_content" not in pending_assistant_message:
+                        raise RuntimeError(
+                            f"DeepSeek工具调用链路缺少 reasoning_content，model={self._llm.model_name}"
+                        )
                 else:
                     copied.pop("tool_calls", None)
                     llm_messages.append(copied)
@@ -272,6 +289,12 @@ class BaseAgent(ABC):
 
         flush_pending_assistant()
         return llm_messages
+
+    def _is_deepseek_reasoning_model(self) -> bool:
+        model_name = (self._llm.model_name or "").strip().lower()
+        if model_name in self._deepseek_reasoning_models:
+            return True
+        return model_name.startswith("deepseek-v4")
 
     @staticmethod
     def _estimate_message_tokens(message: Dict[str, Any]) -> int:
