@@ -1,0 +1,150 @@
+{
+  "id": "2026-04-20-133632",
+  "generated_at": "2026-04-20T05:36:32.279291Z",
+  "language": "zh",
+  "pages": [
+    {
+      "slug": "1-xiang-mu-gai-shu",
+      "title": "项目概述",
+      "file": "1-xiang-mu-gai-shu.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "2-kuai-su-kai-shi",
+      "title": "快速开始",
+      "file": "2-kuai-su-kai-shi.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "3-xi-tong-jia-gou",
+      "title": "系统架构",
+      "file": "3-xi-tong-jia-gou.md",
+      "section": "入门指南",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "4-huan-jing-bian-liang-pei-zhi",
+      "title": "环境变量配置",
+      "file": "4-huan-jing-bian-liang-pei-zhi.md",
+      "section": "入门指南",
+      "level": "Beginner"
+    },
+    {
+      "slug": "5-ai-mo-xing-pei-zhi",
+      "title": "AI 模型配置",
+      "file": "5-ai-mo-xing-pei-zhi.md",
+      "section": "入门指南",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "6-agent-xi-tong-she-ji",
+      "title": "Agent 系统设计",
+      "file": "6-agent-xi-tong-she-ji.md",
+      "section": "核心概念",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "7-a2a-yu-mcp-xie-yi",
+      "title": "A2A 与 MCP 协议",
+      "file": "7-a2a-yu-mcp-xie-yi.md",
+      "section": "核心概念",
+      "level": "Advanced"
+    },
+    {
+      "slug": "8-hui-hua-guan-li-ji-zhi",
+      "title": "会话管理机制",
+      "file": "8-hui-hua-guan-li-ji-zhi.md",
+      "section": "核心概念",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "9-ren-wu-zhi-xing-liu-cheng",
+      "title": "任务执行流程",
+      "file": "9-ren-wu-zhi-xing-liu-cheng.md",
+      "section": "核心概念",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "10-fen-ceng-jia-gou-she-ji",
+      "title": "分层架构设计",
+      "file": "10-fen-ceng-jia-gou-she-ji.md",
+      "section": "后端开发",
+      "group": "架构与设计",
+      "level": "Advanced"
+    },
+    {
+      "slug": "11-ling-yu-mo-xing-ding-yi",
+      "title": "领域模型定义",
+      "file": "11-ling-yu-mo-xing-ding-yi.md",
+      "section": "后端开发",
+      "group": "架构与设计",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "12-cang-chu-mo-shi-shi-xian",
+      "title": "仓储模式实现",
+      "file": "12-cang-chu-mo-shi-shi-xian.md",
+      "section": "后端开发",
+      "group": "架构与设计",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "13-agent-fu-wu-shi-xian",
+      "title": "Agent 服务实现",
+      "file": "13-agent-fu-wu-shi-xian.md",
+      "section": "后端开发",
+      "group": "核心服务",
+      "level": "Advanced"
+    },
+    {
+      "slug": "14-hui-hua-fu-wu",
+      "title": "会话服务",
+      "file": "14-hui-hua-fu-wu.md",
+      "section": "后端开发",
+      "group": "核心服务",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "15-wen-jian-guan-li-fu-wu",
+      "title": "文件管理服务",
+      "file": "15-wen-jian-guan-li-fu-wu.md",
+      "section": "后端开发",
+      "group": "核心服务",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "16-zhuang-tai-fu-wu",
+      "title": "状态服务",
+      "file": "16-zhuang-tai-fu-wu.md",
+      "section": "后端开发",
+      "group": "核心服务",
+      "level": "Intermediate"
+    },
+    {
+      "slug": "17-llm-ji-cheng",
+      "title": "LLM 集成",
+      "file": "17-llm-ji-cheng.md",
+      "section": "后端开发",
+      "group": "外部集成",
+      "level": "Advanced"
+    },
+    {
+      "slug": "18-sha-xiang-fu-wu-ji-cheng",
+      "title": "沙箱服务集成",
+      "file": "18-sha-xiang-fu-wu-ji-cheng.md",
+      "section": "后端开发",
+      "group": "外部集成",
+      "level": "Advanced"
+    },
+    {
+      "slug": "19-sou-suo-yin-qing-ji-cheng",
+      "title": "搜索引擎集成",
+      "file": "19-sou-suo-yin-qing-ji-cheng.md",
+      "section": "后端开发",
+      "group": "外部集成",
+      "level": "Intermediate"
+    }
+  ]
+}
