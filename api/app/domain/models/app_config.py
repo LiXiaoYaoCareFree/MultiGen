@@ -11,8 +11,8 @@ class LLMConfig(BaseModel):
     api_key: str = ""  # 模型API秘钥
     model_name: str = "deepseek-reasoner"  # 模型名字，默认使用deepseek-reasoner带推理的模型，传递tools会自动切换到deepseek-chat
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
-    max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
-    max_prompt_tokens: int = Field(122000, ge=2048, le=131072)
+    max_tokens: int = Field(384000, ge=0)  # 最大输出token数
+    max_prompt_tokens: int = Field(1000000, ge=16800, le=1000000)
 
 
 class AgentConfig(BaseModel):

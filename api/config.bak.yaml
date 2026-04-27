@@ -1,9 +1,10 @@
 llm_config:
   base_url: https://api.deepseek.com/
   api_key: YOUR_DEEPSEEK_API_KEY
-  model_name: deepseek-reasoner
+  model_name: deepseek-v4-pro
   temperature: 0.7
-  max_tokens: 8192
+  max_tokens: 384000
+  max_prompt_tokens: 1000000
 agent_config:
   max_iterations: 100
   max_retries: 3

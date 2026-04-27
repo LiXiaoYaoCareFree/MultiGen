@@ -45,7 +45,7 @@ class BaseAgent(ABC):
         self._session_id = session_id
         self._agent_config = agent_config
         self._llm = llm
-        self._max_prompt_tokens = max(2048, int(getattr(llm, "max_prompt_tokens", 122000)))
+        self._max_prompt_tokens = max(16800, int(getattr(llm, "max_prompt_tokens", 1000000)))
         self._memory: Optional[Memory] = None
         self._json_parser = json_parser
         self._tools = tools
@@ -398,13 +398,13 @@ class BaseAgent(ABC):
         )
 
     def _get_effective_prompt_token_limit(self) -> int:
-        base_limit = max(2048, self._max_prompt_tokens)
+        base_limit = max(16800, self._max_prompt_tokens)
         resolver = getattr(self._llm, "get_safe_prompt_token_limit", None)
         if not callable(resolver):
             return base_limit
         try:
             resolved = int(resolver(self._session_id))
-            return max(2048, min(base_limit, resolved))
+            return max(16800, min(base_limit, resolved))
         except Exception as e:
             logger.warning(f"获取会话安全prompt预算失败，回退默认预算: {e}")
             return base_limit
@@ -429,8 +429,8 @@ class BaseAgent(ABC):
                 continue
             non_system_messages.append(message)
 
-        summary_reserved_tokens = 2048
-        target_prompt_tokens_without_summary = max(2048, target_prompt_tokens - summary_reserved_tokens)
+        summary_reserved_tokens = 16800
+        target_prompt_tokens_without_summary = max(16800, target_prompt_tokens - summary_reserved_tokens)
         kept_reversed: List[Dict[str, Any]] = []
         kept_ids: set[int] = set()
         total_tokens = self._estimate_message_tokens(system_message) if system_message else 0
@@ -484,9 +484,9 @@ class BaseAgent(ABC):
         if not self._is_context_overflow_error(error_msg):
             return False
 
-        context_limit = self._parse_context_limit(error_msg) or 131072
+        context_limit = self._parse_context_limit(error_msg) or 1000000
         completion_tokens = max(256, self._llm.max_tokens)
-        target_prompt_tokens = max(4096, context_limit - completion_tokens - 1024)
+        target_prompt_tokens = max(33600, context_limit - completion_tokens - 8400)
         target_prompt_tokens = min(target_prompt_tokens, self._get_effective_prompt_token_limit())
         return await self._shrink_memory_to_target_prompt_tokens(
             target_prompt_tokens=target_prompt_tokens,

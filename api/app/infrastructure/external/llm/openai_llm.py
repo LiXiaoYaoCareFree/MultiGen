@@ -33,8 +33,8 @@ class OpenAILLM(LLM):
         self._timeout = 3600
         self._session_budget_overrides: Dict[str, Dict[str, float | int]] = {}
         self._default_multiplier = 1.15
-        self._default_offset = 512
-        self._default_reserved_tokens = 2048
+        self._default_offset = 4200
+        self._default_reserved_tokens = 16800
 
     @property
     def model_name(self) -> str:
@@ -55,7 +55,7 @@ class OpenAILLM(LLM):
     def get_safe_prompt_token_limit(self, session_id: str | None = None) -> int:
         multiplier, offset, _ = self._get_budget_factors(session_id)
         safe_limit = math.floor((self._max_prompt_tokens - offset) / max(multiplier, 1e-6))
-        return max(2048, safe_limit)
+        return max(16800, safe_limit)
 
     @staticmethod
     def _estimate_prompt_tokens(messages: List[Dict[str, Any]]) -> int:
@@ -77,7 +77,7 @@ class OpenAILLM(LLM):
         )
         if not request_match:
             return None
-        context_limit = int(context_match.group(1)) if context_match else 131072
+        context_limit = int(context_match.group(1)) if context_match else 1000000
         requested_total = int(request_match.group(1))
         message_tokens = int(request_match.group(2))
         completion_tokens = int(request_match.group(3))
@@ -106,15 +106,15 @@ class OpenAILLM(LLM):
 
         context_limit, _, actual_message_tokens, completion_tokens = metrics
         estimated_prompt_tokens = self._estimate_prompt_tokens(messages)
-        target_prompt_tokens = min(actual_message_tokens + 1024, self._max_prompt_tokens)
+        target_prompt_tokens = min(actual_message_tokens + 8400, self._max_prompt_tokens)
 
         current_multiplier, current_offset, current_reserved = self._get_budget_factors(session_id)
         required_multiplier = target_prompt_tokens / max(1, estimated_prompt_tokens)
         new_multiplier = min(max(current_multiplier, required_multiplier), 6.0)
         base_predicted = math.ceil(estimated_prompt_tokens * new_multiplier)
         required_offset = max(0, target_prompt_tokens - base_predicted)
-        new_offset = min(max(current_offset, required_offset), 32768)
-        new_reserved = min(max(current_reserved, completion_tokens + 1024), 32768)
+        new_offset = min(max(current_offset, required_offset), 268800)
+        new_reserved = min(max(current_reserved, completion_tokens + 8400), 268800)
 
         if (
                 new_multiplier == current_multiplier
@@ -142,7 +142,7 @@ class OpenAILLM(LLM):
             session_id: Optional[str] = None,
     ) -> Tuple[int, int, int]:
         model_name = self._model_name.strip().lower()
-        context_limit = 131072
+        context_limit = 1000000
         prompt_tokens = self._estimate_prompt_tokens(messages)
         if "deepseek" not in model_name:
             return self._max_tokens, prompt_tokens, context_limit
