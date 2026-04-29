@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import traceback
 from datetime import datetime
 from typing import AsyncGenerator, Optional, List, Type, Callable
 
@@ -16,6 +17,7 @@ from app.domain.models.event import BaseEvent, ErrorEvent, MessageEvent, Event, 
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agent_task_runner import AgentTaskRunner
+from app.utils.session_error_logger import write_session_error_log
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,32 @@ class AgentService:
         self._search_engine = search_engine
         self._file_storage = file_storage
         logger.info(f"AgentService初始化成功")
+
+    @staticmethod
+    def _write_chat_failure_log(
+            session_id: str,
+            session_title: Optional[str],
+            error_type: str,
+            error_message: str,
+            stack_trace: Optional[str] = None,
+    ) -> None:
+        """将会话聊天失败写入日志文件，按会话标题和会话ID双写。"""
+        try:
+            write_session_error_log(
+                session_title=session_title or session_id,
+                error_type=error_type,
+                error_message=error_message,
+                stack_trace=stack_trace,
+            )
+            if session_title and session_title != session_id:
+                write_session_error_log(
+                    session_title=session_id,
+                    error_type=error_type,
+                    error_message=f"[title={session_title}] {error_message}",
+                    stack_trace=stack_trace,
+                )
+        except Exception as log_err:
+            logger.warning(f"写入会话失败日志时出错[{session_id}]: {log_err}")
 
     async def _get_task(self, session: Session) -> Optional[Task]:
         """根据传递的任务会话获取任务实例"""
@@ -128,6 +156,7 @@ class AgentService:
             timestamp: Optional[datetime] = None,
     ) -> AsyncGenerator[BaseEvent, None]:
         """根据传递的信息调用Agent服务发起对话请求"""
+        session_title: Optional[str] = None
         try:
             # 1.检查会话是否存在
             async with self._uow:
@@ -135,6 +164,7 @@ class AgentService:
             if not session:
                 logger.error(f"尝试与不存在的任务会话[{session_id}]对话")
                 raise RuntimeError("任务会话不存在, 请核实后重试")
+            session_title = session.title
 
             # 2.获取对应会话任务
             task = await self._get_task(session)
@@ -204,6 +234,13 @@ class AgentService:
 
                 # 15.将事件返回并判断事件类型是否为结束类型
                 yield event
+                if isinstance(event, ErrorEvent):
+                    self._write_chat_failure_log(
+                        session_id=session_id,
+                        session_title=session_title,
+                        error_type="AgentServiceErrorEvent",
+                        error_message=event.error or "会话返回错误事件",
+                    )
                 if isinstance(event, (DoneEvent, ErrorEvent, WaitEvent)):
                     break
 
@@ -212,6 +249,13 @@ class AgentService:
         except Exception as e:
             # 17.记录日志并返回错误事件
             logger.error(f"任务会话[{session_id}]对话出错: {str(e)}")
+            self._write_chat_failure_log(
+                session_id=session_id,
+                session_title=session_title,
+                error_type="AgentServiceException",
+                error_message=str(e),
+                stack_trace=traceback.format_exc(),
+            )
             event = ErrorEvent(error=str(e))
             try:
                 async with self._uow:

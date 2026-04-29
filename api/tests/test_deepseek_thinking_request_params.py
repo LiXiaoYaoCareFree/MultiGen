@@ -16,6 +16,38 @@ class _FakeCompletions:
         return SimpleNamespace(choices=[choice], model_dump=lambda: {"choices": [{"message": {"content": "ok"}}]})
 
 
+class _FakeMessageWithAttr:
+    def __init__(self):
+        self.reasoning_content = "inner think"
+        self.model_extra = {}
+
+    def model_dump(self):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": "{}"}}],
+        }
+
+
+class _FakeResponseWithRawReasoning:
+    def __init__(self):
+        self.choices = [SimpleNamespace(message=_FakeMessageWithAttr())]
+
+    def model_dump(self):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "inner think",
+                        "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": "{}"}}],
+                    }
+                }
+            ]
+        }
+
+
 class _FakeChat:
     def __init__(self):
         self.completions = _FakeCompletions()
@@ -52,3 +84,9 @@ def test_deepseek_v4_flash_enables_thinking_flags() -> None:
     assert kwargs.get("reasoning_effort") == "high"
     assert kwargs.get("extra_body") == {"thinking": {"type": "enabled"}}
     assert "temperature" not in kwargs
+
+
+def test_extract_message_payload_keeps_reasoning_content_from_message_attr() -> None:
+    payload = OpenAILLM._extract_message_payload(_FakeResponseWithRawReasoning())
+    assert payload["reasoning_content"] == "inner think"
+    assert payload["tool_calls"][0]["id"] == "call_1"

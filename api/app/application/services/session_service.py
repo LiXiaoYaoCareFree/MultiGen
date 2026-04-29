@@ -1,7 +1,11 @@
+import io
 import logging
+import os
+import zipfile
 from typing import List, Callable, Type, Optional
 
 from app.application.errors.exceptions import NotFoundError, ServerRequestsError
+from app.domain.external.file_storage import FileStorage
 from app.domain.external.sandbox import Sandbox
 from app.domain.models.file import File
 from app.domain.models.session import Session
@@ -19,11 +23,33 @@ class SessionService:
             self,
             uow_factory: Callable[[], IUnitOfWork],
             sandbox_cls: Type[Sandbox],
+            file_storage: FileStorage,
     ) -> None:
         """构造函数，完成会话服务初始化"""
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._sandbox_cls = sandbox_cls
+        self._file_storage = file_storage
+
+    async def _get_sandbox(self, sandbox_id: Optional[str]) -> Optional[Sandbox]:
+        if not sandbox_id:
+            return None
+        try:
+            return await self._sandbox_cls.get(sandbox_id)
+        except Exception as e:
+            logger.warning(f"获取会话沙箱失败[{sandbox_id}]，将回退到对象存储文件: {str(e)}")
+            return None
+
+    async def _read_session_file_bytes(self, sandbox: Optional[Sandbox], file: File) -> bytes:
+        if sandbox and file.filepath:
+            try:
+                sandbox_stream = await sandbox.download_file(file.filepath)
+                return sandbox_stream.read()
+            except Exception as e:
+                logger.warning(f"从沙箱读取文件失败[{file.filepath}]，回退到对象存储文件: {str(e)}")
+
+        file_stream, _ = await self._file_storage.download_file(file.id)
+        return file_stream.read()
 
     async def create_session(self) -> Session:
         """创建一个空白的新任务会话"""
@@ -79,6 +105,39 @@ class SessionService:
         if not session:
             raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
         return session.files
+
+    async def download_directory(self, session_id: str, dirpath: str) -> tuple[io.BytesIO, str]:
+        """根据会话已记录的文件清单打包下载目录压缩包"""
+        logger.info(f"下载会话[{session_id}]中的目录压缩包, 目录路径: {dirpath}")
+        async with self._uow:
+            session = await self._uow.session.get_by_id(session_id)
+        if not session:
+            raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
+
+        normalized_dirpath = os.path.normpath(dirpath)
+        dir_name = os.path.basename(normalized_dirpath) or "folder"
+        dir_prefix = normalized_dirpath.rstrip(os.sep) + os.sep
+
+        matched_files = [
+            file for file in (session.files or [])
+            if file.filepath and (file.filepath == normalized_dirpath or file.filepath.startswith(dir_prefix))
+        ]
+        if not matched_files:
+            raise NotFoundError(f"当前会话目录下无可下载文件: {dirpath}")
+
+        sandbox = await self._get_sandbox(session.sandbox_id)
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+            for file in sorted(matched_files, key=lambda item: item.filepath):
+                relative_path = os.path.relpath(file.filepath, normalized_dirpath)
+                if relative_path.startswith(".."):
+                    continue
+                file_bytes = await self._read_session_file_bytes(sandbox, file)
+                arcname = os.path.join(dir_name, relative_path)
+                zip_file.writestr(arcname, file_bytes)
+
+        archive.seek(0)
+        return archive, f"{dir_name}.zip"
 
     async def read_file(self, session_id: str, filepath: str) -> FileReadResponse:
         """根据传递的信息查看会话中指定文件的内容"""

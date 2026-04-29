@@ -1,8 +1,11 @@
 import asyncio
 import glob
 import logging
+import os
 import os.path
 import re
+import tempfile
+import zipfile
 from typing import Optional
 
 from fastapi import UploadFile
@@ -309,6 +312,59 @@ class FileService:
             filepath=filepath,
             exists=os.path.exists(filepath),
         )
+
+    @classmethod
+    async def ensure_directory(cls, dirpath: str) -> None:
+        """传递dirpath用于确保当前目录存在"""
+        if not os.path.exists(dirpath):
+            raise NotFoundException(f"该目录不存在: {dirpath}")
+        if not os.path.isdir(dirpath):
+            raise BadRequestException(f"目标不是目录: {dirpath}")
+
+    @classmethod
+    async def create_directory_archive(cls, dirpath: str) -> tuple[str, str]:
+        """将目录打包为 zip 并返回压缩包路径与文件名"""
+        await cls.ensure_directory(dirpath)
+
+        dir_name = os.path.basename(os.path.normpath(dirpath)) or "folder"
+        temp_file = tempfile.NamedTemporaryFile(
+            prefix=f"{dir_name}_",
+            suffix=".zip",
+            delete=False,
+        )
+        archive_path = temp_file.name
+        temp_file.close()
+
+        def async_zip_directory() -> None:
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                has_entries = False
+                for root, dirs, files in os.walk(dirpath):
+                    dirs.sort()
+                    files.sort()
+                    rel_root = os.path.relpath(root, dirpath)
+                    if rel_root == ".":
+                        rel_root = ""
+                    if not dirs and not files and rel_root:
+                        zip_info = zipfile.ZipInfo(f"{rel_root.rstrip('/')}/")
+                        zip_file.writestr(zip_info, "")
+                        has_entries = True
+                    for filename in files:
+                        abs_path = os.path.join(root, filename)
+                        rel_path = os.path.join(rel_root, filename) if rel_root else filename
+                        zip_file.write(abs_path, arcname=rel_path)
+                        has_entries = True
+                if not has_entries:
+                    zip_info = zipfile.ZipInfo(f"{dir_name}/")
+                    zip_file.writestr(zip_info, "")
+
+        try:
+            await asyncio.to_thread(async_zip_directory)
+        except Exception:
+            if os.path.exists(archive_path):
+                os.unlink(archive_path)
+            raise
+
+        return archive_path, f"{dir_name}.zip"
 
     async def delete_file(self, filepath: str) -> FileDeleteResult:
         """根据传递的路径+sudo删除指定文件"""

@@ -62,7 +62,7 @@ def test_raise_when_tool_call_without_reasoning_content() -> None:
         agent._build_llm_messages(messages)
 
 
-def test_drop_reasoning_content_when_no_tool_call() -> None:
+def test_keep_reasoning_content_when_no_tool_call() -> None:
     agent = _new_agent("deepseek-v4-flash")
     messages = [
         {"role": "system", "content": "s"},
@@ -72,7 +72,7 @@ def test_drop_reasoning_content_when_no_tool_call() -> None:
     llm_messages = agent._build_llm_messages(messages)
     assistant = llm_messages[1]
     assert assistant["role"] == "assistant"
-    assert "reasoning_content" not in assistant
+    assert assistant.get("reasoning_content") == "inner think"
 
 
 def test_keep_reasoning_content_when_tool_call_chain_complete() -> None:
@@ -93,6 +93,7 @@ def test_keep_reasoning_content_when_tool_call_chain_complete() -> None:
     assert assistant["role"] == "assistant"
     assert assistant.get("reasoning_content") == "inner think"
     assert assistant.get("tool_calls")
+    assert llm_messages[2] == {"role": "tool", "tool_call_id": "call_1", "content": "{}"}
 
 
 def test_raise_when_tool_call_reasoning_content_is_empty() -> None:
@@ -129,3 +130,42 @@ def test_keep_reasoning_content_for_final_assistant_in_tool_turn() -> None:
     assert llm_messages[1].get("tool_calls")
     assert llm_messages[1].get("reasoning_content") == "inner think"
     assert llm_messages[3].get("reasoning_content") == "final think"
+
+
+def test_allow_final_assistant_in_tool_turn_without_reasoning_content() -> None:
+    agent = _new_agent("deepseek-v4-flash")
+    messages = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "question"},
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "inner think",
+            "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "content": "{}"},
+        {"role": "assistant", "content": "done"},
+        {"role": "user", "content": "next"},
+    ]
+    llm_messages = agent._build_llm_messages(messages)
+    final_assistant = llm_messages[4]
+    assert final_assistant["role"] == "assistant"
+    assert final_assistant.get("content") == "done"
+    assert "reasoning_content" not in final_assistant
+
+
+def test_tool_message_strips_non_spec_fields() -> None:
+    agent = _new_agent("deepseek-v4-flash")
+    messages = [
+        {"role": "system", "content": "s"},
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "inner think",
+            "tool_calls": [{"id": "call_1", "function": {"name": "f", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "function_name": "f", "content": "{}"},
+        {"role": "user", "content": "continue"},
+    ]
+    llm_messages = agent._build_llm_messages(messages)
+    assert llm_messages[2] == {"role": "tool", "tool_call_id": "call_1", "content": "{}"}

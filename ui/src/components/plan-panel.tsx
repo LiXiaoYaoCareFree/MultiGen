@@ -35,7 +35,7 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
             <div className="flex items-center justify-center gap-2.5 w-full px-4 py-2 truncate text-gray-500">
               <Clock size={16} />
               <div className="flex flex-col w-full gap-0.5 truncate">
-                <div className="text-sm truncate">
+                <div className="text-sm truncate" title={steps[0]?.description ?? '暂无步骤'}>
                   {steps[0]?.description ?? '暂无步骤'}
                 </div>
               </div>
@@ -81,15 +81,15 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                 {steps.map((step) => (
                 <div
                   key={step.id}
-                  className="flex items-center text-gray-500 text-sm gap-2.5 w-full px-4 py-2 truncate"
+                  className="flex items-start text-gray-500 text-sm gap-2.5 w-full px-4 py-2"
                 >
                   {step.status === 'completed' ? (
-                    <Check size={16} className="relative top-0.5 flex-shrink-0" />
+                    <Check size={16} className="relative top-1 flex-shrink-0" />
                   ) : (
-                    <Clock size={16} className="relative top-0.5 flex-shrink-0" />
+                    <Clock size={16} className="relative top-1 flex-shrink-0" />
                   )}
-                  <div className="flex flex-col w-full truncate">
-                    <div className="text-sm truncate">{step.description}</div>
+                  <div className="flex flex-col w-full min-w-0">
+                    <div className="text-sm leading-6 whitespace-pre-wrap break-words">{step.description}</div>
                   </div>
                 </div>
               ))}

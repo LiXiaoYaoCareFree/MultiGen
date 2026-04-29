@@ -23,6 +23,7 @@ import {
 import { Avatar, AvatarGroupCount } from '@/components/ui/avatar'
 import { formatFileSize } from '@/lib/utils'
 import { fileApi } from '@/lib/api'
+import { sessionApi } from '@/lib/api/session'
 import { toast } from 'sonner'
 import type { SessionFile } from '@/lib/api/types'
 import { sessionFileToAttachment } from '@/lib/session-events'
@@ -31,6 +32,7 @@ import type { AttachmentFile } from '@/lib/session-events'
 type FileTreeNode = {
   name: string
   path: string
+  absolutePath: string
   folders: FileTreeNode[]
   files: SessionFile[]
 }
@@ -51,6 +53,8 @@ function formatDisplayFilename(filename: string, keepChars = 40): string {
 }
 
 export interface SessionHeaderProps {
+  /** 会话 ID */
+  sessionId?: string
   /** 任务/会话标题 */
   title?: string
   /** 此任务下的文件列表（用于「此任务中所有文件」弹窗） */
@@ -66,6 +70,7 @@ export interface SessionHeaderProps {
 }
 
 export function SessionHeader({
+  sessionId = '',
   title = '',
   files,
   fileListOpen,
@@ -109,12 +114,12 @@ export function SessionHeader({
   }, [fileList])
 
   const buildFileTree = useCallback((items: SessionFile[]): FileTreeNode => {
-    const root: FileTreeNode = { name: '', path: '', folders: [], files: [] }
+    const root: FileTreeNode = { name: '', path: '', absolutePath: '', folders: [], files: [] }
 
-    const ensureFolder = (parent: FileTreeNode, name: string, path: string) => {
+    const ensureFolder = (parent: FileTreeNode, name: string, path: string, absolutePath: string) => {
       const existing = parent.folders.find((folder) => folder.path === path)
       if (existing) return existing
-      const created: FileTreeNode = { name, path, folders: [], files: [] }
+      const created: FileTreeNode = { name, path, absolutePath, folders: [], files: [] }
       parent.folders.push(created)
       parent.folders.sort((a, b) => a.name.localeCompare(b.name))
       return created
@@ -123,6 +128,7 @@ export function SessionHeader({
     items.forEach((file) => {
       const rawPath = (file.filepath || file.filename || '').replace(/\\/g, '/').trim()
       const normalizedPath = rawPath.replace(/^\/+/, '')
+      const isAbsolute = rawPath.startsWith('/')
       const segments = normalizedPath.split('/').filter(Boolean)
       const fallbackName = file.filename || '未命名文件'
       const filename = segments.length > 0 ? segments[segments.length - 1] : fallbackName
@@ -130,9 +136,13 @@ export function SessionHeader({
 
       let current = root
       let currentPath = ''
+      let currentAbsolutePath = ''
       folderSegments.forEach((segment) => {
         currentPath = currentPath ? `${currentPath}/${segment}` : segment
-        current = ensureFolder(current, segment, currentPath)
+        currentAbsolutePath = currentAbsolutePath
+          ? `${currentAbsolutePath}/${segment}`
+          : isAbsolute ? `/${segment}` : segment
+        current = ensureFolder(current, segment, currentPath, currentAbsolutePath)
       })
 
       current.files.push({
@@ -148,6 +158,7 @@ export function SessionHeader({
   const fileTree = useMemo(() => buildFileTree(uniqueFileList), [buildFileTree, uniqueFileList])
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({})
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadingFolderPath, setDownloadingFolderPath] = useState<string | null>(null)
 
   const handleDownload = useCallback(async (file: SessionFile, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -171,6 +182,29 @@ export function SessionHeader({
       setDownloadingId(null)
     }
   }, [downloadingId])
+
+  const handleFolderDownload = useCallback(async (folder: FileTreeNode, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!sessionId || !folder.absolutePath || downloadingFolderPath) return
+    setDownloadingFolderPath(folder.path)
+    try {
+      const blob = await sessionApi.downloadSessionFolder(sessionId, folder.absolutePath)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${folder.name || 'folder'}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success(`已下载文件夹「${folder.name}」`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '下载失败'
+      toast.error(`下载文件夹「${folder.name}」失败: ${msg}`)
+    } finally {
+      setDownloadingFolderPath(null)
+    }
+  }, [downloadingFolderPath, sessionId])
 
   const handleFileItemClick = useCallback((file: SessionFile) => {
     if (onFileClick) {
@@ -215,17 +249,31 @@ export function SessionHeader({
       const nestedCount = folder.files.length + folder.folders.length
       return (
         <div key={folder.path} className="flex flex-col gap-1">
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+          <div
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
             style={{ paddingLeft: `${depth * 16 + 8}px` }}
-            onClick={() => toggleFolder(folder.path)}
           >
-            {isExpanded ? <ChevronDown className="size-4 text-gray-500" /> : <ChevronRight className="size-4 text-gray-500" />}
-            <Folder className="size-4 text-amber-500" />
-            <span className="flex-1 truncate">{folder.name}</span>
-            <span className="text-xs text-gray-400">{nestedCount}</span>
-          </button>
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+              onClick={() => toggleFolder(folder.path)}
+            >
+              {isExpanded ? <ChevronDown className="size-4 text-gray-500" /> : <ChevronRight className="size-4 text-gray-500" />}
+              <Folder className="size-4 text-amber-500" />
+              <span className="flex-1 truncate">{folder.name}</span>
+              <span className="text-xs text-gray-400">{nestedCount}</span>
+            </button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="cursor-pointer"
+              onClick={(e) => handleFolderDownload(folder, e)}
+              disabled={!sessionId || downloadingFolderPath === folder.path}
+              aria-label={`下载文件夹 ${folder.name}`}
+            >
+              <Download />
+            </Button>
+          </div>
           {isExpanded ? renderTree(folder, depth + 1) : null}
         </div>
       )
@@ -277,7 +325,7 @@ export function SessionHeader({
         {fileItems}
       </div>
     )
-  }, [downloadingId, expandedFolders, handleDownload, handleFileItemClick, toggleFolder])
+  }, [downloadingFolderPath, downloadingId, expandedFolders, handleDownload, handleFileItemClick, handleFolderDownload, sessionId, toggleFolder])
 
   return (
     <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">

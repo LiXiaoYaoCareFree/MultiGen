@@ -98,6 +98,10 @@ class Sandbox(Protocol):
         """根据传递的文件路径下载沙箱中的文件"""
         ...
 
+    async def download_directory(self, dirpath: str) -> BinaryIO:
+        """根据传递的目录路径下载沙箱中的目录压缩包"""
+        ...
+
     async def ensure_sandbox(self) -> None:
         """确保当前沙箱存在，如果不存在会创建"""
         ...

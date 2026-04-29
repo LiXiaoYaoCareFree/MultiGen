@@ -447,11 +447,17 @@ class AgentTaskRunner(TaskRunner):
                     # 5.工具为file则将文件同步到对象存储
                     if "filepath" in event.function_args:
                         filepath = event.function_args["filepath"]
-                        file_read_result = await self._sandbox.read_file(filepath)
-                        file_content: str = (file_read_result.data or {}).get("content", "")
-                        event.tool_content = FileToolContent(content=file_content)
-                        # bugfix:修改为同步文件到storage
-                        await self._sync_file_to_storage(filepath)
+                        if event.function_name == "read_file":
+                            file_read_result = await self._sandbox.read_file(filepath)
+                            file_content: str = (file_read_result.data or {}).get("content", "")
+                            event.tool_content = FileToolContent(content=file_content)
+                        elif event.function_name in {"write_file", "replace_in_file"}:
+                            await self._sync_file_to_storage(filepath)
+                        elif event.function_name == "delete_file":
+                            async with self._uow:
+                                file = await self._uow.session.get_file_by_path(self._session_id, filepath)
+                                if file:
+                                    await self._uow.session.remove_file(self._session_id, file.id)
                     else:
                         event.tool_content = FileToolContent(content="(No Content)")
                 elif event.tool_name in ["mcp", "a2a"]:

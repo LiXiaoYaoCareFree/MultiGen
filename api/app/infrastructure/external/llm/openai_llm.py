@@ -40,6 +40,40 @@ class OpenAILLM(LLM):
         model_name = self._model_name.strip().lower()
         return model_name.startswith("deepseek-v4")
 
+    @staticmethod
+    def _extract_message_payload(response: Any) -> Dict[str, Any]:
+        """兼容 OpenAI SDK 与 DeepSeek 扩展字段，稳定提取 assistant message。"""
+        message_obj = response.choices[0].message
+        payload: Dict[str, Any] = {}
+
+        if hasattr(message_obj, "model_dump"):
+            payload = message_obj.model_dump()
+        elif isinstance(message_obj, dict):
+            payload = dict(message_obj)
+
+        # DeepSeek 的 reasoning_content 可能存在于 message 扩展字段中。
+        reasoning_content = getattr(message_obj, "reasoning_content", None)
+        if reasoning_content is None:
+            model_extra = getattr(message_obj, "model_extra", None) or {}
+            reasoning_content = model_extra.get("reasoning_content")
+        if reasoning_content is None and hasattr(response, "model_dump"):
+            raw_response = response.model_dump()
+            raw_message = (
+                raw_response.get("choices", [{}])[0].get("message", {})
+                if isinstance(raw_response, dict) else {}
+            )
+            if isinstance(raw_message, dict):
+                reasoning_content = raw_message.get("reasoning_content")
+                if not payload:
+                    payload = dict(raw_message)
+                elif "reasoning_content" not in payload and reasoning_content is not None:
+                    payload["reasoning_content"] = reasoning_content
+
+        if reasoning_content is not None:
+            payload["reasoning_content"] = reasoning_content
+
+        return payload
+
     @property
     def model_name(self) -> str:
         return self._model_name
@@ -229,8 +263,11 @@ class OpenAILLM(LLM):
                 response = await self._client.chat.completions.create(**request_kwargs)
 
             # 3.处理响应数据并返回
-            logger.info(f"OpenAI客户端返回内容: {response.model_dump()}")
-            return response.choices[0].message.model_dump()
+            raw_response = response.model_dump() if hasattr(response, "model_dump") else response
+            logger.info(f"OpenAI客户端返回内容: {raw_response}")
+            message_payload = self._extract_message_payload(response)
+            logger.info(f"OpenAI客户端解析后的message: {message_payload}")
+            return message_payload
         except Exception as e:
             error_type = e.__class__.__name__
             error_message = str(e) or repr(e)

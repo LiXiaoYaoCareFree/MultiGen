@@ -1,4 +1,6 @@
 import { get, post, createSSEStream, parseSSEStream } from "./fetch";
+import { getStoredAdminApiKey } from "@/lib/admin-auth";
+import { getApiBaseUrl } from "./file";
 import type {
   Session,
   SessionDetail,
@@ -228,6 +230,26 @@ export const sessionApi = {
   },
 
   /**
+   * 下载会话文件夹压缩包
+   */
+  downloadSessionFolder: async (sessionId: string, dirpath: string): Promise<Blob> => {
+    const adminApiKey = getStoredAdminApiKey();
+    const url = `${getApiBaseUrl()}/sessions/${sessionId}/folder-download?${new URLSearchParams({
+      dirpath,
+    }).toString()}`;
+
+    const response = await fetch(url, {
+      headers: adminApiKey ? { "X-Admin-Api-Key": adminApiKey } : undefined,
+    });
+
+    if (!response.ok) {
+      throw new Error(`下载失败: ${response.statusText}`);
+    }
+
+    return response.blob();
+  },
+
+  /**
    * 查看沙箱文件内容
    */
   viewFile: (
@@ -253,4 +275,3 @@ export const sessionApi = {
     );
   },
 };
-

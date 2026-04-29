@@ -1,11 +1,14 @@
 import asyncio
 import logging
+import os
+import traceback
 from datetime import datetime
 from typing import Optional, Dict, AsyncGenerator
 
 import websockets
 from fastapi import APIRouter, Depends
 from sse_starlette import EventSourceResponse, ServerSentEvent
+from starlette.responses import StreamingResponse
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from websockets import ConnectionClosed
 
@@ -24,6 +27,7 @@ from app.interfaces.schemas.session import (
     DeleteSessionRequest,
 )
 from app.interfaces.service_dependencies import get_session_service, get_agent_service
+from app.utils.session_error_logger import write_session_error_log
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["会话模块"], dependencies=[Depends(require_admin_auth)])
@@ -163,21 +167,31 @@ async def chat(
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
         """定义事件生成器，用于配合EventSourceResponse生成流式响应数据"""
-        # 1.调用Agent服务发起聊天
-        async for event in agent_service.chat(
-                session_id=session_id,
-                message=request.message,
-                attachments=request.attachments,
-                latest_event_id=request.event_id,
-                timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
-        ):
-            # 2.将Agent事件转换为sse数据(因为普通的event没法通过流式事件传输)
-            sse_event = EventMapper.event_to_sse_event(event)
-            if sse_event:
-                yield ServerSentEvent(
-                    event=sse_event.event,
-                    data=sse_event.data.model_dump_json(),
-                )
+        try:
+            # 1.调用Agent服务发起聊天
+            async for event in agent_service.chat(
+                    session_id=session_id,
+                    message=request.message,
+                    attachments=request.attachments,
+                    latest_event_id=request.event_id,
+                    timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
+            ):
+                # 2.将Agent事件转换为sse数据(因为普通的event没法通过流式事件传输)
+                sse_event = EventMapper.event_to_sse_event(event)
+                if sse_event:
+                    yield ServerSentEvent(
+                        event=sse_event.event,
+                        data=sse_event.data.model_dump_json(),
+                    )
+        except Exception as e:
+            logger.exception(f"会话[{session_id}]流式发送消息失败: {str(e)}")
+            write_session_error_log(
+                session_title=session_id,
+                error_type="SessionChatRoute",
+                error_message=f"流式发送消息失败: {str(e)}",
+                stack_trace=traceback.format_exc(),
+            )
+            raise
 
     return EventSourceResponse(event_generator())
 
@@ -237,6 +251,27 @@ async def get_session_files(
     return Response.success(
         msg="获取会话文件列表成功",
         data=GetSessionFilesResponse(files=files)
+    )
+
+
+@router.get(
+    path="/{session_id}/folder-download",
+    summary="下载会话沙箱中的文件夹压缩包",
+    description="根据传递的会话id与目录路径，将沙箱中的目录打包为zip后下载",
+)
+async def download_session_folder(
+        session_id: str,
+        dirpath: str,
+        session_service: SessionService = Depends(get_session_service),
+) -> StreamingResponse:
+    archive, filename = await session_service.download_directory(session_id, dirpath)
+    safe_filename = os.path.basename(filename) or "folder.zip"
+    return StreamingResponse(
+        archive,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_filename}"',
+        },
     )
 
 

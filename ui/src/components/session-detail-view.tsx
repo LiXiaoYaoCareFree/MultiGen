@@ -258,6 +258,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
           <div className={`flex flex-col h-full mx-auto w-full min-w-0 px-4 ${hasPreview ? '' : 'max-w-[768px]'}`}>
             <div className="flex-shrink-0">
               <SessionHeader
+                sessionId={session.session_id}
                 title={session.title}
                 files={files}
                 fileListOpen={fileListOpen}

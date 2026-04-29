@@ -168,21 +168,22 @@ function StepBlock({
             setExpanded((prev) => !prev)
           }
         }}
-        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header truncate text-gray-700 rounded-md hover:bg-gray-50/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header text-gray-700 rounded-md hover:bg-gray-50/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
       >
-        <div className="flex flex-row gap-2 justify-start items-center truncate min-w-0 flex-1">
+        <div className="flex flex-row gap-2 justify-start items-start min-w-0 flex-1">
           <div
             className={cn(
-              'w-4 h-4 flex-shrink-0 flex items-center justify-center border rounded-[15px] bg-gray-300'
+              'w-4 h-4 mt-1 flex-shrink-0 flex items-center justify-center border rounded-[15px]',
+              isCompleted ? 'border-green-500 bg-green-500' : 'border-gray-300 bg-white'
             )}
           >
-            <CheckIcon className="text-white" size={10} />
+            <CheckIcon className={cn('text-white', !isCompleted && 'opacity-0')} size={10} />
           </div>
-          <div className="truncate font-medium markdown-content min-w-0">
+          <div className="font-medium markdown-content min-w-0 whitespace-pre-wrap break-words leading-6">
             {data.description}
           </div>
           <ChevronDown
-            className={cn('flex-shrink-0 transition-transform text-gray-500', expanded && 'rotate-180')}
+            className={cn('mt-1 flex-shrink-0 transition-transform text-gray-500', expanded && 'rotate-180')}
           />
         </div>
       </div>

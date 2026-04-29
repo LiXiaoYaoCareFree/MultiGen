@@ -133,10 +133,6 @@ class BaseAgent(ABC):
                 return True
         return False
 
-    @staticmethod
-    def _request_contains_tool_results(messages: List[Dict[str, Any]]) -> bool:
-        return any(message.get("role") == "tool" for message in messages)
-
     async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Dict[str, Any]:
         """调用语言模型并处理记忆内容"""
         # 1.将消息添加到记忆中
@@ -199,11 +195,10 @@ class BaseAgent(ABC):
                             "reasoning_content" in filtered_message,
                             len(message.get("tool_calls") or []),
                         )
-                    elif (
-                        self._is_deepseek_reasoning_model()
-                        and self._request_contains_tool_results(messages)
-                        and self._has_valid_reasoning_content(message.get("reasoning_content"))
+                    elif self._is_deepseek_reasoning_model() and self._has_valid_reasoning_content(
+                        message.get("reasoning_content")
                     ):
+                        # 非工具调用assistant若返回了reasoning_content，保留原样用于后续多轮回传。
                         filtered_message["reasoning_content"] = message.get("reasoning_content")
                 else:
                     # 8.非AI消息则记录日志并存储message
@@ -293,9 +288,12 @@ class BaseAgent(ABC):
                     or tool_call_id not in pending_tool_call_ids
                 ):
                     raise RuntimeError(f"检测到孤立的 tool 消息，未匹配到前置 tool_calls: {tool_call_id}")
-                if copied.get("content") is None:
-                    copied["content"] = ""
-                pending_tool_messages.append(copied)
+                # 按 DeepSeek/OpenAI tool message 规范，仅保留 role/tool_call_id/content 字段。
+                pending_tool_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": copied.get("content") if copied.get("content") is not None else "",
+                })
                 pending_tool_call_seen_ids.add(tool_call_id)
                 continue
 
@@ -318,8 +316,15 @@ class BaseAgent(ABC):
                 return
             for message in current_turn:
                 copied = dict(message)
-                if copied.get("role") == "assistant" and not current_turn_has_tool_use:
-                    copied.pop("reasoning_content", None)
+                if copied.get("role") == "assistant":
+                    has_tool_calls = bool(copied.get("tool_calls"))
+                    if current_turn_has_tool_use and has_tool_calls:
+                        if not self._has_valid_reasoning_content(copied.get("reasoning_content")):
+                            raise RuntimeError(
+                                "DeepSeek工具轮次中的assistant消息缺少有效 reasoning_content，无法继续拼接上下文"
+                            )
+                    elif not self._has_valid_reasoning_content(copied.get("reasoning_content")):
+                        copied.pop("reasoning_content", None)
                 normalized.append(copied)
             current_turn = []
             current_turn_has_tool_use = False

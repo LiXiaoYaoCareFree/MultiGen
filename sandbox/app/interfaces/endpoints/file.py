@@ -1,7 +1,9 @@
 import os.path
+import os
 
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from fastapi.responses import FileResponse
+from starlette.background import BackgroundTask
 
 from app.interfaces.schemas.base import Response
 from app.interfaces.schemas.file import (
@@ -180,6 +182,21 @@ async def download_file(
         path=filepath,
         filename=filename,
         media_type="application/octet-stream",
+    )
+
+
+@router.get(path="/download-directory")
+async def download_directory(
+        dirpath: str,
+        file_service: FileService = Depends(get_file_service),
+) -> FileResponse:
+    """根据传递的dirpath下载指定目录的zip压缩包"""
+    archive_path, filename = await file_service.create_directory_archive(dirpath)
+    return FileResponse(
+        path=archive_path,
+        filename=filename,
+        media_type="application/zip",
+        background=BackgroundTask(lambda: os.path.exists(archive_path) and os.unlink(archive_path)),
     )
 
 

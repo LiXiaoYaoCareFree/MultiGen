@@ -425,6 +425,16 @@ class DockerSandbox(Sandbox):
 
         return io.BytesIO(response.content)
 
+    async def download_directory(self, dirpath: str) -> BinaryIO:
+        """从沙箱中下载目录压缩包"""
+        response = await self.client.get(
+            f"{self._base_url}/api/file/download-directory",
+            params={"dirpath": dirpath}
+        )
+        response.raise_for_status()
+
+        return io.BytesIO(response.content)
+
     async def exec_command(self, session_id: str, exec_dir: str, command: str) -> ToolResult:
         """在沙箱中执行命令"""
         response = await self.client.post(

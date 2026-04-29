@@ -67,8 +67,19 @@ def get_file_service(
     )
 
 
-def get_session_service() -> SessionService:
-    return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
+def get_session_service(
+        cos: Cos = Depends(get_cos),
+) -> SessionService:
+    file_storage = CosFileStorage(
+        bucket=settings.cos_bucket,
+        cos=cos,
+        uow_factory=get_uow,
+    )
+    return SessionService(
+        uow_factory=get_uow,
+        sandbox_cls=DockerSandbox,
+        file_storage=file_storage,
+    )
 
 
 def get_agent_service(
