@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
 import type { SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
+import { toast } from 'sonner'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
@@ -36,6 +37,43 @@ export function useSessionDetail(
   const messageStreamCleanupRef = useRef<(() => void) | null>(null)
   const isSendMessageRef = useRef(false)
   const lastEventIdRef = useRef<string | null>(null)
+  const lastEventTypeRef = useRef<string | null>(null)
+  const interruptionNotifiedRef = useRef(false)
+
+  const recordInterruptionLog = useCallback(
+    (reason: string, detail?: string) => {
+      const payload = {
+        kind: 'chat_send_interrupted',
+        sessionId,
+        reason,
+        detail: detail || '',
+        lastEventId: lastEventIdRef.current,
+        lastEventType: lastEventTypeRef.current,
+        at: new Date().toISOString(),
+      }
+      console.error('[session-chat-interrupt]', payload)
+      try {
+        const key = 'multigen_chat_interrupt_logs'
+        const raw = localStorage.getItem(key)
+        const logs = raw ? (JSON.parse(raw) as Array<Record<string, unknown>>) : []
+        logs.push(payload)
+        localStorage.setItem(key, JSON.stringify(logs.slice(-100)))
+      } catch {
+        // 忽略本地存储异常，避免影响主流程
+      }
+    },
+    [sessionId]
+  )
+
+  const notifyInterrupted = useCallback(
+    (message: string, reason: string) => {
+      if (interruptionNotifiedRef.current) return
+      interruptionNotifiedRef.current = true
+      toast.error(message)
+      recordInterruptionLog(reason, message)
+    },
+    [recordInterruptionLog]
+  )
 
   const appendEvent = useCallback((ev: SSEEventData) => {
     let evToAppend = ev
@@ -46,6 +84,7 @@ export function useSessionDetail(
 
     const eventId = (evToAppend.data as { event_id?: string })?.event_id
     if (eventId) lastEventIdRef.current = eventId
+    lastEventTypeRef.current = evToAppend.type
 
     setEvents((prev) => [...prev, evToAppend])
     
@@ -90,9 +129,12 @@ export function useSessionDetail(
     
     // error 事件时也可以认为任务结束
     if (evToAppend.type === 'error') {
+      const errorMsg = (evToAppend.data as { error?: string })?.error || '发送消息中断，请稍后重试'
+      setError(new Error(errorMsg))
+      notifyInterrupted(`发送消息中断：${errorMsg}`, 'error_event')
       setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
     }
-  }, [])
+  }, [notifyInterrupted])
 
   const startEmptyStream = useCallback(() => {
     if (!sessionId) return
@@ -229,6 +271,7 @@ export function useSessionDetail(
       // 发送消息时，清除跳过空流的标记
       setSkipEmptyStream(false)
       isSendMessageRef.current = true
+      interruptionNotifiedRef.current = false
       setStreaming(true)
       
       // 立即更新状态为 running，不等待 SSE 事件
@@ -270,7 +313,13 @@ export function useSessionDetail(
             return
           }
           // 实际错误
-          setError(err instanceof Error ? err : new Error('流式响应异常'))
+          const streamError = err instanceof Error ? err : new Error('流式响应异常')
+          setError(streamError)
+          notifyInterrupted(`发送消息中断：${streamError.message}`, 'stream_error')
+          appendEvent({
+            type: 'error',
+            data: { error: streamError.message },
+          } as SSEEventData)
           setStreaming(false)
           isSendMessageRef.current = false
           setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
@@ -284,7 +333,7 @@ export function useSessionDetail(
       // 将消息流的 cleanup 存到独立的 ref，不与 emptyStream 混淆
       messageStreamCleanupRef.current = messageStreamCleanup
     },
-    [sessionId, appendEvent, startEmptyStream, stopEmptyStream]
+    [sessionId, appendEvent, startEmptyStream, stopEmptyStream, notifyInterrupted]
   )
 
   return {

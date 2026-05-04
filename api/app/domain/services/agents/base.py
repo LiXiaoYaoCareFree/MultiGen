@@ -133,6 +133,10 @@ class BaseAgent(ABC):
                 return True
         return False
 
+    @staticmethod
+    def _request_contains_tool_results(messages: List[Dict[str, Any]]) -> bool:
+        return any(message.get("role") == "tool" for message in messages)
+
     async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Dict[str, Any]:
         """调用语言模型并处理记忆内容"""
         # 1.将消息添加到记忆中
@@ -170,10 +174,7 @@ class BaseAgent(ABC):
                     if not message.get("content") and not message.get("tool_calls"):
                         logger.warning(f"LLM回复了空内容，执行重试")
                         error = "LLM回复了空内容"
-                        await self._add_to_memory([
-                            {"role": "assistant", "content": ""},
-                            {"role": "user", "content": "AI无响应内容，请继续。"}
-                        ])
+                        # 不向会话记忆写入伪造消息，避免污染DeepSeek多轮拼接链路。
                         await asyncio.sleep(self._retry_interval)
                         continue
 
@@ -200,6 +201,11 @@ class BaseAgent(ABC):
                     ):
                         # 非工具调用assistant若返回了reasoning_content，保留原样用于后续多轮回传。
                         filtered_message["reasoning_content"] = message.get("reasoning_content")
+                    elif self._is_deepseek_reasoning_model() and self._request_contains_tool_results(messages):
+                        error = "DeepSeek工具轮次最终assistant响应缺少有效 reasoning_content"
+                        logger.error("%s: model=%s", error, self._llm.model_name)
+                        await asyncio.sleep(self._retry_interval)
+                        continue
                 else:
                     # 8.非AI消息则记录日志并存储message
                     logger.warning(f"LLM响应内容无法确认消息角色: {message.get('role')}")
@@ -230,6 +236,7 @@ class BaseAgent(ABC):
         pending_tool_call_ids: set[str] = set()
         pending_tool_call_seen_ids: set[str] = set()
         pending_tool_messages: List[Dict[str, Any]] = []
+        dropped_tool_call_ids: set[str] = set()
 
         def flush_pending_assistant() -> None:
             nonlocal pending_assistant_message, pending_tool_call_ids, pending_tool_call_seen_ids, pending_tool_messages
@@ -264,9 +271,19 @@ class BaseAgent(ABC):
 
                 if valid_tool_calls:
                     if requires_reasoning and not self._has_valid_reasoning_content(copied.get("reasoning_content")):
-                        raise RuntimeError(
-                            f"DeepSeek工具调用链路缺少有效 reasoning_content，model={self._llm.model_name}"
+                        dropped_ids = {
+                            item["id"] for item in valid_tool_calls
+                            if isinstance(item.get("id"), str) and item["id"].strip()
+                        }
+                        dropped_tool_call_ids.update(dropped_ids)
+                        logger.error(
+                            "检测到历史DeepSeek工具调用消息缺少reasoning_content，已丢弃该assistant/tool子链路: "
+                            "session_id=%s model=%s tool_calls=%d",
+                            self._session_id,
+                            self._llm.model_name,
+                            len(dropped_ids),
                         )
+                        continue
                     copied["tool_calls"] = valid_tool_calls
                     pending_assistant_message = copied
                     pending_tool_call_ids = {
@@ -281,12 +298,26 @@ class BaseAgent(ABC):
 
             if role == "tool":
                 tool_call_id = copied.get("tool_call_id")
+                if isinstance(tool_call_id, str) and tool_call_id in dropped_tool_call_ids:
+                    logger.warning(
+                        "跳过已标记损坏的历史tool消息: session_id=%s tool_call_id=%s",
+                        self._session_id,
+                        tool_call_id,
+                    )
+                    continue
                 if (
                     not isinstance(tool_call_id, str)
                     or not tool_call_id.strip()
                     or not pending_assistant_message
                     or tool_call_id not in pending_tool_call_ids
                 ):
+                    if requires_reasoning:
+                        logger.warning(
+                            "跳过孤立的历史tool消息以恢复DeepSeek多轮链路: session_id=%s tool_call_id=%s",
+                            self._session_id,
+                            tool_call_id,
+                        )
+                        continue
                     raise RuntimeError(f"检测到孤立的 tool 消息，未匹配到前置 tool_calls: {tool_call_id}")
                 # 按 DeepSeek/OpenAI tool message 规范，仅保留 role/tool_call_id/content 字段。
                 pending_tool_messages.append({
@@ -314,11 +345,25 @@ class BaseAgent(ABC):
             nonlocal current_turn, current_turn_has_tool_use
             if not current_turn:
                 return
+            if current_turn_has_tool_use:
+                invalid_assistant = any(
+                    msg.get("role") == "assistant" and not self._has_valid_reasoning_content(msg.get("reasoning_content"))
+                    for msg in current_turn
+                )
+                if invalid_assistant:
+                    logger.error(
+                        "检测到历史DeepSeek工具轮次缺少reasoning_content，已丢弃该轮非user消息以恢复文档规范链路: session_id=%s",
+                        self._session_id,
+                    )
+                    user_messages = [dict(msg) for msg in current_turn if msg.get("role") == "user"]
+                    normalized.extend(user_messages[:1])
+                    current_turn = []
+                    current_turn_has_tool_use = False
+                    return
             for message in current_turn:
                 copied = dict(message)
                 if copied.get("role") == "assistant":
-                    has_tool_calls = bool(copied.get("tool_calls"))
-                    if current_turn_has_tool_use and has_tool_calls:
+                    if current_turn_has_tool_use:
                         if not self._has_valid_reasoning_content(copied.get("reasoning_content")):
                             raise RuntimeError(
                                 "DeepSeek工具轮次中的assistant消息缺少有效 reasoning_content，无法继续拼接上下文"

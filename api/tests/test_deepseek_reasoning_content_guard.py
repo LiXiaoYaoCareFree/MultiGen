@@ -132,7 +132,7 @@ def test_keep_reasoning_content_for_final_assistant_in_tool_turn() -> None:
     assert llm_messages[3].get("reasoning_content") == "final think"
 
 
-def test_allow_final_assistant_in_tool_turn_without_reasoning_content() -> None:
+def test_drop_invalid_historical_tool_turn_when_final_reasoning_missing() -> None:
     agent = _new_agent("deepseek-v4-flash")
     messages = [
         {"role": "system", "content": "s"},
@@ -148,10 +148,9 @@ def test_allow_final_assistant_in_tool_turn_without_reasoning_content() -> None:
         {"role": "user", "content": "next"},
     ]
     llm_messages = agent._build_llm_messages(messages)
-    final_assistant = llm_messages[4]
-    assert final_assistant["role"] == "assistant"
-    assert final_assistant.get("content") == "done"
-    assert "reasoning_content" not in final_assistant
+    assert llm_messages[0]["role"] == "system"
+    assert llm_messages[1] == {"role": "user", "content": "question"}
+    assert llm_messages[2] == {"role": "user", "content": "next"}
 
 
 def test_tool_message_strips_non_spec_fields() -> None:
@@ -169,3 +168,22 @@ def test_tool_message_strips_non_spec_fields() -> None:
     ]
     llm_messages = agent._build_llm_messages(messages)
     assert llm_messages[2] == {"role": "tool", "tool_call_id": "call_1", "content": "{}"}
+
+
+def test_drop_historical_assistant_tool_chain_without_reasoning_content() -> None:
+    agent = _new_agent("deepseek-v4-flash")
+    messages = [
+        {"role": "system", "content": "s"},
+        {"role": "user", "content": "question"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "call_bad", "function": {"name": "f", "arguments": "{}"}}],
+        },
+        {"role": "tool", "tool_call_id": "call_bad", "content": "{}"},
+        {"role": "assistant", "content": "normal answer", "reasoning_content": "ok"},
+    ]
+    llm_messages = agent._build_llm_messages(messages)
+    assert all(msg.get("tool_call_id") != "call_bad" for msg in llm_messages)
+    assert all(not msg.get("tool_calls") for msg in llm_messages if msg.get("content") == "")
+    assert llm_messages[-1].get("content") == "normal answer"
