@@ -1,0 +1,31 @@
+{
+  "CS-AI-001": {
+    "gpt_researcher": {
+      "auto": {
+        "overall_score": 4.95,
+        "recommendation": "strong_accept",
+        "dimensions": [
+          {
+            "name": "研究动机与问题定义",
+            "score": 4.2075000000000005,
+            "comment": "自动化指标综合反映, ROUGE-L=1.000"
+          },
+          {
+            "name": "方法的合理性与创新性",
+            "score": 4.455,
+            "comment": "自动化指标综合反映, BERTScore=1.000"
+          },
+          {
+            "name": "实验设计与严谨性",
+            "score": 4.7025,
+            "comment": "自动化指标综合反映, 事实一致性=1.000"
+          },
+          {
+            "name": "结论的有效性与逻辑一致性",
+            "score": 4.455,
+            "comment": "自动化指标综合反映, 表数据准确性=1.000"
+          },
+          {
+            "name": "写作质量与学术规范性",
+            "score": 4.375,
+            "comment": "结构完整性=0

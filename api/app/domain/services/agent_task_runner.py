@@ -89,6 +89,7 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_tool = A2ATool()
         self._file_storage = file_storage
         self._api_base_dir = Path(__file__).resolve().parents[3]
+        self._session_storage_dir = self._api_base_dir / "storage" / "sessions" / self._session_id
         self._pending_generated_files: Dict[str, File] = {}
         self._browser = browser
         self._flow = PlannerReActFlow(
@@ -195,6 +196,25 @@ class AgentTaskRunner(TaskRunner):
 
         return size
 
+    def _resolve_session_storage_path(self, source_path: str) -> Path:
+        """将沙箱/本地存储路径映射到会话本地目录，保持原有层级结构。"""
+        normalized = (source_path or "").replace("\\", "/").strip()
+        if normalized.startswith("/"):
+            normalized = normalized[1:]
+        parts = [part for part in normalized.split("/") if part not in {"", ".", ".."}]
+        if not parts:
+            parts = ["unnamed"]
+        return self._session_storage_dir.joinpath(*parts)
+
+    def _persist_session_local_file(self, source_path: str, content: bytes) -> None:
+        """将文件字节按会话落盘到本地。"""
+        try:
+            target_path = self._resolve_session_storage_path(source_path)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_bytes(content)
+        except Exception as e:
+            logger.warning(f"会话文件本地持久化失败[{source_path}]: {str(e)}")
+
     async def _sync_file_to_storage(self, filepath: str) -> File:
         """将沙箱中指定的文件路径数据同步到存储桶中"""
         try:
@@ -204,6 +224,7 @@ class AgentTaskRunner(TaskRunner):
 
             # 2.从沙箱中下载文件
             file_data = await self._sandbox.download_file(filepath)
+            file_bytes = file_data.read()
 
             # 3.判断会话中的文件是否存在
             if file:
@@ -213,9 +234,9 @@ class AgentTaskRunner(TaskRunner):
             # 4.提取文件名字、文件信息并更新文件路径
             filename = filepath.split("/")[-1]
             upload_file = UploadFile(
-                file=file_data,
+                file=io.BytesIO(file_bytes),
                 filename=filename,
-                size=self._get_stream_size(file_data),
+                size=len(file_bytes),
             )
 
             # 5.上传文件到文件存储桶
@@ -225,6 +246,9 @@ class AgentTaskRunner(TaskRunner):
             # 6.往会话中新增一个文件信息
             async with self._uow:
                 await self._uow.session.add_file(self._session_id, file)
+
+            # 7.按会话持久化到本地目录，保持sandbox路径结构
+            self._persist_session_local_file(filepath, file_bytes)
             return file
         except Exception as e:
             logger.exception(f"AgentTaskRunner同步消息附件到文件存储桶失败: {str(e)}")
@@ -343,6 +367,9 @@ class AgentTaskRunner(TaskRunner):
             file.filepath = normalized
             async with self._uow:
                 await self._uow.session.add_file(self._session_id, file)
+
+            # 同步保存到会话目录，便于本地按会话复盘产物
+            self._persist_session_local_file(normalized, data)
             return file
         except Exception as e:
             logger.exception(f"AgentTaskRunner同步本地存储文件失败[{storage_path}]: {str(e)}")

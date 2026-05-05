@@ -1,0 +1,529 @@
+{
+  "timestamp": "2026-05-04T19:32:57.099144",
+  "total_entries": 56,
+  "passed": false,
+  "issues": [
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2510.17851v1",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2506.09781v2",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2306.11113v2",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2303.09306v2",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-4c9f35060b5e62fd03e520e38553442f71626edf",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-1e704b99a04aad6d6d7e665616b7d4ed2513da02",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2510.03955v1",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-d60446b4c881c2fe72d446974a7e955c51982879",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-b5f15709051860db0480175f79109b880855ea3e",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-79112952abe5a39ef0a33ffd05142534ed6bec24",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "ARXIV-2402.11566v3",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-cbbd640cced2ef1c0ba4ce11c9dbb62c22cd9e48",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-bc132b1e74af422ab676fba33e7491f79305b56e",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-0ef652345d129a5b756d7e12dacd3cce1395a067",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖1个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-fe537df556f2036d0c51fed96da3060b12961c14",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-65a9cde161905f6f6bc7d479dce305e9845fb087",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-91efcb973882b76e683dae08af8634592313e536",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-6157d11c66a5f63be7ba08bb4c1523b98af2a383",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-bdbf0835af5fb422b8e641d95d3ba5ee2e1e2cb8",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-125a1769de1b5b3d12c818465b284d7d279bf7ee",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "format",
+      "paper_id": "SS-3f048262b0fd3785f67ba0b2a1c44c10699155f0",
+      "field": "fabrication_checklist",
+      "message": "声明仅覆盖2个章节，需要≥3",
+      "suggestion": "增加跨章节的声明"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "ARXIV-2602.12375v1",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(safe)不一致",
+      "suggestion": "检查出版日期2026-02-12与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-b7b836e33c68166bde2b0ca53a10a2c3625a2bb4",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-07-01与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-79112952abe5a39ef0a33ffd05142534ed6bec24",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-07-09与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-8be71bd12c885a61f84a2fb567739fde3beab3f8",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-01-31与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-cbbd640cced2ef1c0ba4ce11c9dbb62c22cd9e48",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-09-01与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-bc132b1e74af422ab676fba33e7491f79305b56e",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-03-24与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-f3338f18dee5a11785f5382e4431335795530589",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-08-21与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-edfec968152fe595a5c3c44410cab65e16d075c9",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(suspicious)与计算值(high_risk)不一致",
+      "suggestion": "检查出版日期2024-06-04与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "ARXIV-2409.19212v5",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-09-28与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-65a9cde161905f6f6bc7d479dce305e9845fb087",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-12-21与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "ARXIV-2602.11092v2",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(safe)不一致",
+      "suggestion": "检查出版日期2026-02-11与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-e0d837f56e947f52c2f2cc0e222920a849d31c16",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-02-03与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-07e12d387d4720aec5b23832ad2e0e68d66a1840",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-01-21与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-f6d6bba8374f4d7f219ee35e83f05656a5456a7c",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-10-18与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-91efcb973882b76e683dae08af8634592313e536",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-02-17与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-e1513fbdb01b13c337d1ee4e69227c1b0bc98cf1",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-01-15与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-31b2a6118fac5ba1ff9020e51344385837c9ab17",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-08-16与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-6157d11c66a5f63be7ba08bb4c1523b98af2a383",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-01-24与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-bdbf0835af5fb422b8e641d95d3ba5ee2e1e2cb8",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(high_risk)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2025-04-08与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "ARXIV-2405.10079v2",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(suspicious)与计算值(high_risk)不一致",
+      "suggestion": "检查出版日期2024-05-16与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "decontamination",
+      "paper_id": "SS-3f048262b0fd3785f67ba0b2a1c44c10699155f0",
+      "field": "decontamination.risk_level",
+      "message": "去污染标注(safe)与计算值(suspicious)不一致",
+      "suggestion": "检查出版日期2024-10-05与LLM截止日期的比对"
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "ARXIV-2506.09781v2",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "ARXIV-2306.11113v2",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "ARXIV-2402.07064v6",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-8be71bd12c885a61f84a2fb567739fde3beab3f8",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-bc132b1e74af422ab676fba33e7491f79305b56e",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-f3338f18dee5a11785f5382e4431335795530589",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-35aef4664f246c38ca92a6625ee395785383df32",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-edfec968152fe595a5c3c44410cab65e16d075c9",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "ARXIV-2409.19212v5",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-0ef652345d129a5b756d7e12dacd3cce1395a067",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "warning",
+      "category": "consistency",
+      "paper_id": "SS-e1513fbdb01b13c337d1ee4e69227c1b0bc98cf1",
+      "field": "content",
+      "message": "研究类型为theoretical但论证类型为empirical，可能不一致",
+      "suggestion": ""
+    },
+    {
+      "level": "error",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "discipline_coverage",
+      "message": "缺失学科大类: {'医学与生命科学'}",
+      "suggestion": "为缺失学科补充数据"
+    },
+    {
+      "level": "warning",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "discipline_社会科学",
+      "message": "社会科学仅有5条（目标≥30）",
+      "suggestion": "增加25条"
+    },
+    {
+      "level": "warning",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "discipline_自然科学",
+      "message": "自然科学仅有7条（目标≥30）",
+      "suggestion": "增加23条"
+    },
+    {
+      "level": "warning",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "discipline_工程与技术科学",
+      "message": "工程与技术科学仅有4条（目标≥30）",
+      "suggestion": "增加26条"
+    },
+    {
+      "level": "warning",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "discipline_人文学科",
+      "message": "人文学科仅有1条（目标≥30）",
+      "suggestion": "增加29条"
+    },
+    {
+      "level": "info",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "subdiscipline_社会科学→心理学",
+      "message": "社会科学→心理学仅有5条（目标≥10）",
+      "suggestion": "小型子学科可适度降低目标"
+    },
+    {
+      "level": "info",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "subdiscipline_自然科学→物理学",
+      "message": "自然科学→物理学仅有7条（目标≥10）",
+      "suggestion": "小型子学科可适度降低目标"
+    },
+    {
+      "level": "info",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "subdiscipline_工程与技术科学→材料科学",
+      "message": "工程与技术科学→材料科学仅有4条（目标≥10）",
+      "suggestion": "小型子学科可适度降低目标"
+    },
+    {
+      "level": "info",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "subdiscipline_人文学科→语言学",
+      "message": "人文学科→语言学仅有1条（目标≥10）",
+      "suggestion": "小型子学科可适度降低目标"
+    },
+    {
+      "level": "info",
+      "category": "diversity",
+      "paper_id": "ALL",
+      "field": "sparsity",
+      "message": "10个学科×任务组合仅1条实例",
+      "suggestion": "为这些组合增加实例以提高统计可靠性"
+    }
+  ],
+  "scores": {
+    "format": 0,
+    "consistency": 0,
+    "diversity": 15,
+    "overall": 15
+  },
+  "stage_details": {
+    "format": {
+      "errors": 0,
+      "warnings": 21
+    },
+    "consistency": {
+      "issues": 32
+    },
+    "diversity": {
+      "issues": 10
+    }
+  }
+}

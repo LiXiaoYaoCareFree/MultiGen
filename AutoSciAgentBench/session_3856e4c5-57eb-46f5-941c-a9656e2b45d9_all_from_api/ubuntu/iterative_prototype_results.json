@@ -1,0 +1,278 @@
+{
+  "timestamp": "2026-04-29T13:54:52.346212",
+  "config": {
+    "max_rounds": 3,
+    "seeds_tested": 5,
+    "agents": [
+      "claude",
+      "codex",
+      "kimi"
+    ]
+  },
+  "records": [
+    {
+      "agent": "Vaswani et al.",
+      "seed": "computer_vision",
+      "citation_trend": [
+        0.65,
+        0.75,
+        0.7586206896551724,
+        0.7777777777777778
+      ],
+      "experiment_trend": [
+        0.6,
+        0.6,
+        1.0,
+        0.6
+      ],
+      "baseline_citation": 0.64,
+      "baseline_experiment": "69% (31% both mismatch)"
+    },
+    {
+      "agent": "Devlin et al.",
+      "seed": "natural_language_processing",
+      "citation_trend": [
+        0.6538461538461539,
+        0.75,
+        0.7777777777777778,
+        0.7777777777777778
+      ],
+      "experiment_trend": [
+        0.8,
+        1.0,
+        0.8,
+        0.8
+      ],
+      "baseline_citation": 0.64,
+      "baseline_experiment": "69% (31% both mismatch)"
+    },
+    {
+      "agent": "Devlin et al.",
+      "seed": "generative_models",
+      "citation_trend": [
+        0.6666666666666666,
+        0.75,
+        0.75,
+        0.7777777777777778
+      ],
+      "experiment_trend": [
+        1.0,
+        0.8,
+        0.6,
+        0.8
+      ],
+      "baseline_citation": 0.64,
+      "baseline_experiment": "69% (31% both mismatch)"
+    },
+    {
+      "agent": "Vaswani et al.",
+      "seed": "supervised_representation_learning",
+      "citation_trend": [
+        0.6551724137931034,
+        0.75,
+        0.7391304347826086,
+        0.7586206896551724
+      ],
+      "experiment_trend": [
+        1.0,
+        1.0,
+        0.8,
+        0.8
+      ],
+      "baseline_citation": 0.64,
+      "baseline_experiment": "69% (31% both mismatch)"
+    },
+    {
+      "agent": "Goodfellow et al.",
+      "seed": "interpretability_of_learned_representations",
+      "citation_trend": [
+        0.6521739130434783,
+        0.7586206896551724,
+        0.75,
+        0.75
+      ],
+      "experiment_trend": [
+        1.0,
+        0.8,
+        1.0,
+        1.0
+      ],
+      "baseline_citation": 0.64,
+      "baseline_experiment": "69% (31% both mismatch)"
+    },
+    {
+      "agent": "Vaswani et al.",
+      "seed": "computer_vision",
+      "citation_trend": [
+        0.9285714285714286,
+        0.9285714285714286,
+        0.9411764705882353,
+        0.9473684210526315
+      ],
+      "experiment_trend": [
+        1.0,
+        1.0,
+        1.0,
+        0.8
+      ],
+      "baseline_citation": 0.92,
+      "baseline_experiment": "95% (5% both mismatch)"
+    },
+    {
+      "agent": "He et al.",
+      "seed": "natural_language_processing",
+      "citation_trend": [
+        0.9444444444444444,
+        0.9375,
+        0.95
+      ],
+      "experiment_trend": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline_citation": 0.92,
+      "baseline_experiment": "95% (5% both mismatch)"
+    },
+    {
+      "agent": "Krizhevsky et al.",
+      "seed": "generative_models",
+      "citation_trend": [
+        0.9473684210526315,
+        0.9411764705882353,
+        0.9523809523809523,
+        0.9230769230769231
+      ],
+      "experiment_trend": [
+        1.0,
+        0.8,
+        1.0,
+        1.0
+      ],
+      "baseline_citation": 0.92,
+      "baseline_experiment": "95% (5% both mismatch)"
+    },
+    {
+      "agent": "Kingma and Ba",
+      "seed": "supervised_representation_learning",
+      "citation_trend": [
+        0.9230769230769231,
+        0.9473684210526315,
+        0.95,
+        0.95
+      ],
+      "experiment_trend": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "baseline_citation": 0.92,
+      "baseline_experiment": "95% (5% both mismatch)"
+    },
+    {
+      "agent": "Goodfellow et al.",
+      "seed": "interpretability_of_learned_representations",
+      "citation_trend": [
+        0.9230769230769231,
+        0.9473684210526315
+      ],
+      "experiment_trend": [
+        1.0,
+        1.0
+      ],
+      "baseline_citation": 0.92,
+      "baseline_experiment": "95% (5% both mismatch)"
+    },
+    {
+      "agent": "Vaswani et al.",
+      "seed": "computer_vision",
+      "citation_trend": [
+        0.2826086956521739,
+        0.375,
+        0.3880597014925373,
+        0.37735849056603776
+      ],
+      "experiment_trend": [
+        0.4,
+        0.6,
+        0.6,
+        0.8
+      ],
+      "baseline_citation": 0.28,
+      "baseline_experiment": "23% (77% both mismatch)"
+    },
+    {
+      "agent": "Devlin et al.",
+      "seed": "natural_language_processing",
+      "citation_trend": [
+        0.28125,
+        0.375,
+        0.38596491228070173,
+        0.38028169014084506
+      ],
+      "experiment_trend": [
+        0.6,
+        0.4,
+        0.4,
+        0.6
+      ],
+      "baseline_citation": 0.28,
+      "baseline_experiment": "23% (77% both mismatch)"
+    },
+    {
+      "agent": "Krizhevsky et al.",
+      "seed": "generative_models",
+      "citation_trend": [
+        0.2826086956521739,
+        0.3695652173913043,
+        0.38596491228070173,
+        0.375
+      ],
+      "experiment_trend": [
+        0.6,
+        0.6,
+        0.4,
+        0.4
+      ],
+      "baseline_citation": 0.28,
+      "baseline_experiment": "23% (77% both mismatch)"
+    },
+    {
+      "agent": "He et al.",
+      "seed": "supervised_representation_learning",
+      "citation_trend": [
+        0.2833333333333333,
+        0.38,
+        0.38,
+        0.3880597014925373
+      ],
+      "experiment_trend": [
+        0.4,
+        0.4,
+        0.6,
+        0.6
+      ],
+      "baseline_citation": 0.28,
+      "baseline_experiment": "23% (77% both mismatch)"
+    },
+    {
+      "agent": "He et al.",
+      "seed": "interpretability_of_learned_representations",
+      "citation_trend": [
+        0.2826086956521739,
+        0.38,
+        0.375,
+        0.3880597014925373
+      ],
+      "experiment_trend": [
+        0.6,
+        0.6,
+        0.6,
+        0.4
+      ],
+      "baseline_citation": 0.28,
+      "baseline_experiment": "23% (77% both mismatch)"
+    }
+  ]
+}

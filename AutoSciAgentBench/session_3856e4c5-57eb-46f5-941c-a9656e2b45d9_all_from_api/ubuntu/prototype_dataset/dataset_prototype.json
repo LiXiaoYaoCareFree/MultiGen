@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "version": "0.1.0-prototype",
+    "created_at": "2026-04-27T11:01:39.404579",
+    "description": "统一AI自动科研评估数据集原型",
+    "total_entries": 13
+  },
+  "taxonomy": {
+    "formal_sciences": {
+      "name_zh": "形式科学",
+      "name_en": "Formal Sciences",
+      "sub_disciplines": {
+        "computer_science": {
+          "name_zh": "计算机科学",
+          "name_en": "Computer Science",
+          "research_areas": [
+            "人工智能",
+            "机器学习",
+            "自然语言处理",
+            "计算机视觉",
+            "机器人学",
+            "理论计算机科学",
+            "软件工程"
+          ]
+        },
+        "mathematics": {
+          "name_zh": "数学",
+          "name_en": "Mathematics",
+          "research_areas": [
+            "优化理论",
+            "数值分析",
+            "概率论",
+            "统计学"
+          ]
+        }
+      }
+    },
+    "natural_sciences": {
+      "name_zh": "自然科

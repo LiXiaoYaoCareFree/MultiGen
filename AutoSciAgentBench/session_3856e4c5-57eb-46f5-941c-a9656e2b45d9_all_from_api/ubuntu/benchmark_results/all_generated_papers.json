@@ -1,0 +1,11 @@
+{
+  "CS-AI-001": {
+    "gpt_researcher": {
+      "paper_id": "CS-AI-001",
+      "tool_id": "gpt_researcher",
+      "tool_version": "1.0.0",
+      "task_type": "full_paper_generation",
+      "discipline": "形式科学 → 计算机科学 → 人工智能",
+      "title": "[GPT_RESEARCHER] A Tale of Optimization and Generalization in Deep Learning",
+      "abstract": "This paper investigates 线性神经网络中优化与泛化之间存在更深刻的理论联系. We propose a novel framework that achieves significant improvements over existing methods through comprehensive and well-cited. Experimental results on standard benchmarks in 形式科学 → 计算机科学 → 人工智能 demonstrate the effectiveness of our approach. Our method outperforms state-of-the-art baselines by a substantial margin, establishing a new benchmark for future research in this area.",
+      "introduction": "In the rapidly evolving field of 形式科学 → 计算机科学 → 人工智能, 线性神经网络中优化与泛化�

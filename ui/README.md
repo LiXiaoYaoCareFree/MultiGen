@@ -37,7 +37,7 @@ ui/
 项目通过环境变量 `NEXT_PUBLIC_API_BASE_URL` 配置 API 地址：
 
 - **开发环境**：默认 `http://localhost:8000/api`（直连 API 服务）
-- **生产环境**：构建时设置为 `/api`（通过 Nginx 反向代理）
+- **Docker 本地运行**：建议设置为 `http://localhost:8000/api`（直连 API 服务）
 
 管理员登录控制相关环境变量：
 
@@ -85,6 +85,6 @@ UI 服务通过根目录的 `docker-compose.yml` 统一部署。Dockerfile 采�
 
 构建时通过以下参数注入前端配置：
 
-- `NEXT_PUBLIC_API_BASE_URL=/api`
+- `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api`
 - `NEXT_PUBLIC_ADMIN_LOGIN_REQUIRED=false`
 - `NEXT_PUBLIC_ADMIN_PASSWORD=`

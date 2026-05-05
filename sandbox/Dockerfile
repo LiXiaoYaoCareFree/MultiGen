@@ -29,8 +29,9 @@ RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 7.为pip3配置阿里云镜像源
+# 7.为pip3配置阿里云镜像源并安装uv
 RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/
+RUN pip3 install --no-cache-dir uv
 
 # 8.安装node.js 24.12.0版本(LTS)
 RUN mkdir -p /etc/apt/keyrings && \
@@ -69,9 +70,9 @@ ENV LANG=zh_CN.UTF-8 \
 # 13.设置工作空间
 WORKDIR /sandbox
 
-# 14.拷贝项目依赖文件到工作空间并安装依赖
+# 14.拷贝项目依赖文件到工作空间并使用uv安装依赖
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN uv pip install --system --no-cache -r requirements.txt
 
 # 15.拷贝当前整个项目文件
 COPY . .

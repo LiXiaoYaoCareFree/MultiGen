@@ -1,0 +1,34 @@
+{
+  "DEMO-0001": {
+    "paper_id": "DEMO-0001",
+    "checklist_version": "1.0.0",
+    "verifiable_claims": [
+      {
+        "claim_id": "FC-DEMO-0001-01",
+        "claim_type": "numerical_result",
+        "claim_location": {
+          "section": "Experiments",
+          "paragraph": 0
+        },
+        "claim_text": "achieves 85% accuracy",
+        "verification_method": "results_json",
+        "tolerance": {
+          "absolute": 1.0,
+          "relative": 0.02
+        },
+        "required_evidence": "results.json中包含accuracy字段，值在84.0-86.0范围内"
+      },
+      {
+        "claim_id": "FC-DEMO-0001-02",
+        "claim_type": "numerical_result",
+        "claim_location": {
+          "section": "Experiments",
+          "paragraph": 1
+        },
+        "claim_text": "achieves 1.9% accuracy",
+        "verification_method": "results_json",
+        "tolerance": {
+          "absolute": 1.0,
+          "relative": 0.02
+        },
+        "required_evidence": "results.json中包含accuracy字段，�

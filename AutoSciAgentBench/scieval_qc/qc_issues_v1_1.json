@@ -1,0 +1,30 @@
+[
+  {
+    "level": "info",
+    "category": "enrichment",
+    "paper_id": "ARXIV-2207.02337v1",
+    "field": "cross:depth_vs_citations",
+    "message": "citation_depth=low但total_citations=14447>=50"
+  },
+  {
+    "level": "warning",
+    "category": "enrichment",
+    "paper_id": "SS-cbbd640cced2ef1c0ba4ce11c9dbb62c22cd9e48",
+    "field": "publication_status.venue",
+    "message": "状态为accepted但缺少venue信息"
+  },
+  {
+    "level": "warning",
+    "category": "enrichment",
+    "paper_id": "SS-cbbd640cced2ef1c0ba4ce11c9dbb62c22cd9e48",
+    "field": "cross:status_vs_reviews",
+    "message": "论文状态为accepted但has_reviews=false——已接受论文通常应有评审"
+  },
+  {
+    "level": "warning",
+    "category": "enrichment",
+    "paper_id": "SS-cbbd640cced2ef1c0ba4ce11c9dbb62c22cd9e48",
+    "field": "cross:quality_vs_status",
+    "message": "论文已接受但paper_quality_grade=C——标注可能不一致"
+  }
+]

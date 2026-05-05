@@ -55,19 +55,19 @@ ssh root@localhost -p 2222
 
 ```bash
 # 安装依赖
-pip3 install -r requirements.txt
+uv sync
 
 # 启动 API 服务
-uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ## Docker 部署
 
-沙箱服务通过根目录的 `docker-compose.yml` 统一部署。生产环境中沙箱作为固定容器运行，API 服务通过 `SANDBOX_ADDRESS=manus-sandbox` 连接。
+沙箱服务通过根目录的 `docker-compose.yml` 统一部署。沙箱作为固定容器运行，API 服务通过 `SANDBOX_ADDRESS=multigen-sandbox:8080` 连接。
 
 ### 端口说明
 
-在 Docker Compose 部署中，沙箱端口仅在容器网络内部可访问，不对外暴露：
+在 Docker Compose 部署中，默认会映射 `SANDBOX_PORT:8080` 方便本地调试，其他端口仅在容器网络内部可访问：
 
 - `8080` - FastAPI REST API
 - `9222` - Chrome DevTools Protocol

@@ -47,10 +47,6 @@ mooc-manus/
 ├── api/              # Backend API service (FastAPI)
 ├── ui/               # Frontend service (Next.js)
 ├── sandbox/          # Sandbox service (Ubuntu + Chrome + VNC)
-├── nginx/            # Nginx gateway configuration
-│   ├── nginx.conf
-│   └── conf.d/
-│       └── default.conf
 ├── docker-compose.yml
 ├── .env              # Environment variables (create it yourself)
 └── README.md
@@ -78,7 +74,9 @@ mooc-manus/
  
 
    # Optional
-   NGINX_PORT=8088                             # Public port for Nginx
+   UI_PORT=3000                                # Web UI port
+   API_PORT=8000                               # Backend API port
+   SANDBOX_PORT=8080                           # Sandbox port (debugging)
    ADMIN_API_KEY=your_admin_api_key_here       # Admin API key for authentication
    LLM_PROVIDER=vocano                      # LLM provider (deepseek or openai)
    TENCENT_AI3D_API_KEY=your_tencent_ai3d_api_key_here # Tencent AI3D API key
@@ -131,48 +129,40 @@ mooc-manus/
 
 4. **Open the app**
 
-   Visit `http://localhost:8088` (or the port defined by `NGINX_PORT` in `.env`).
+   Visit `http://localhost:3000` (or the port defined by `UI_PORT` in `.env`).
 
 ### Local URLs
 
-- Web UI: `http://localhost:${NGINX_PORT:-8088}`
-- API health check: `http://localhost:${NGINX_PORT:-8088}/api/status`
+- Web UI: `http://localhost:${UI_PORT:-3000}`
+- API health check: `http://localhost:${API_PORT:-8000}/api/status`
+- Sandbox: `http://localhost:${SANDBOX_PORT:-8080}`
 
 ## Architecture
 
 ```
-                    ┌─────────────┐
-     Port 8088      │   Nginx     │
-   ─────────────────►  (Gateway)  │
-                    └──────┬──────┘
-                           │
-              ┌────────────┴────────────┐
-              │ /                       │ /api
-              ▼                         ▼
-       ┌─────────────┐          ┌─────────────┐
-       │  Next.js UI │          │  FastAPI     │
-       │  (Port 3000)│          │  (Port 8000) │
-       └─────────────┘          └──────┬──────┘
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    │                  │                   │
-                    ▼                  ▼                   ▼
-             ┌───────────┐     ┌───────────┐       ┌───────────┐
-             │ PostgreSQL│     │   Redis   │       │  Sandbox  │
-             │(Port 5432)│     │(Port 6379)│       │ (VNC/HTTP)│
-             └───────────┘     └───────────┘       └───────────┘
+       ┌─────────────┐         API call         ┌─────────────┐
+       │  Next.js UI │ ───────────────────────► │   FastAPI   │
+       │  (Port 3000)│   http://localhost:8000/api (CORS)     │
+       └─────────────┘                         └──────┬──────┘
+                                                      │
+                                   ┌──────────────────┼──────────────────┐
+                                   │                  │                  │
+                                   ▼                  ▼                  ▼
+                            ┌───────────┐      ┌───────────┐      ┌───────────┐
+                            │ PostgreSQL│      │   Redis   │      │  Sandbox  │
+                            │(Port 5432)│      │(Port 6379)│      │(Port 8080)│
+                            └───────────┘      └───────────┘      └───────────┘
 ```
 
 ## Containers
 
 | Container | Service | Description |
 |---------|------|------|
-| manus-nginx | Nginx | Reverse proxy gateway, the only exposed entrypoint |
-| manus-ui | Next.js | Frontend UI service |
-| manus-api | FastAPI | Backend API service |
-| manus-postgres | PostgreSQL | Database |
-| manus-redis | Redis | Cache |
-| manus-sandbox | Sandbox | Sandbox runtime (Chrome + VNC) |
+| multigen-ui | Next.js | Frontend UI service (exposed on `3000`) |
+| multigen-api | FastAPI | Backend API service (exposed on `8000`) |
+| multigen-postgres | PostgreSQL | Database |
+| multigen-redis | Redis | Cache |
+| multigen-sandbox | Sandbox | Sandbox runtime (exposed on `8080`) |
 
 ## Common Commands
 
@@ -185,11 +175,11 @@ docker compose ps
 
 # Follow logs
 docker compose logs -f
-docker compose logs -f manus-api
-docker compose logs -f manus-ui
+docker compose logs -f multigen-api
+docker compose logs -f multigen-ui
 
 # Restart a single service
-docker compose restart manus-api
+docker compose restart multigen-api
 
 # Stop everything
 docker compose down
@@ -198,20 +188,11 @@ docker compose down
 docker compose down -v
 ```
 
-## Enable HTTPS
+## Local Direct Access (No Nginx)
 
-1. Put your TLS certificate files into `nginx/ssl/`:
-   - `fullchain.pem`
-   - `privkey.pem`
-
-2. Update `nginx/conf.d/default.conf` to add/enable a `listen 443 ssl` server block and point it to your certificate paths.
-
-3. Update `docker-compose.yml` to enable the `443:443` port mapping (and mount `nginx/ssl` if needed).
-
-4. Restart Nginx:
-   ```bash
-   docker compose restart manus-nginx
-   ```
+- Web UI: `http://localhost:${UI_PORT:-3000}`
+- API: `http://localhost:${API_PORT:-8000}/api/status`
+- Sandbox: `http://localhost:${SANDBOX_PORT:-8080}`
 
 ## Local Development
 

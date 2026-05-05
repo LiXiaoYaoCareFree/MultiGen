@@ -1,0 +1,23 @@
+{
+  "total_entries": 13,
+  "discipline_count": 4,
+  "task_count": 5,
+  "auto_issues": [],
+  "safe_entries": [
+    "CS-AI-001",
+    "CS-AI-002",
+    "CS-NLP-001",
+    "CS-NLP-002",
+    "CS-ROB-001",
+    "BIO-001",
+    "BIO-002",
+    "CHEM-001",
+    "CHEM-002",
+    "ECON-001",
+    "ECON-002"
+  ],
+  "contaminated_entries": [
+    "PHYS-001",
+    "PHYS-002"
+  ]
+}

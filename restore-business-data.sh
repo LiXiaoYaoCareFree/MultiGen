@@ -39,4 +39,4 @@ if [ -f "${BACKUP_DIR}/api/logs.tar.gz" ]; then
 fi
 
 docker compose up -d
-docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'multigen-(postgres|redis|api|ui|nginx|sandbox)' || true
+docker ps --format 'table {{.Names}}\t{{.Status}}' | grep -E 'multigen-(postgres|redis|api|ui|sandbox)' || true

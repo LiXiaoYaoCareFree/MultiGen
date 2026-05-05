@@ -1,0 +1,40 @@
+{
+  "timestamp": "2026-04-27T12:06:31.340913",
+  "num_papers_analyzed": 21,
+  "avg_spearman": null,
+  "avg_kendall": null,
+  "consistency_level": "未知",
+  "detail": {
+    "CS-AI-001_gpt_researcher": {
+      "spearman": {},
+      "kendall": {},
+      "bias": {
+        "ai_ai_reviewer_gpt4o": 0.433,
+        "ai_ai_reviewer_claude_sonnet": -0.367,
+        "ai_ai_reviewer_gemini_pro": -0.067
+      }
+    },
+    "CS-AI-001_paperqa2": {
+      "spearman": {},
+      "kendall": {},
+      "bias": {
+        "ai_ai_reviewer_gpt4o": 0.1,
+        "ai_ai_reviewer_claude_sonnet": -0.15,
+        "ai_ai_reviewer_gemini_pro": 0.05
+      }
+    },
+    "CS-AI-001_scimon": {
+      "spearman": {},
+      "kendall": {},
+      "bias": {
+        "ai_ai_reviewer_gpt4o": -0.3,
+        "ai_ai_reviewer_claude_sonnet": 0.6,
+        "ai_ai_reviewer_gemini_pro": -0.3
+      }
+    },
+    "CS-NLP-001_gpt_researcher": {
+      "spearman": {},
+      "kendall": {},
+      "bias": {
+        "ai_ai_reviewer_gpt4o": -0.317,
+        "ai_ai_reviewer_clau

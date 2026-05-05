@@ -1,0 +1,41 @@
+[
+  {
+    "paper_id": "DEMO-0001",
+    "discipline": {
+      "primary_path": [
+        "形式科学",
+        "计算机科学",
+        "人工智能",
+        "深度学习"
+      ],
+      "cross_discipline_tags": [
+        "形式科学-交叉"
+      ],
+      "confidence": 0.8,
+      "annotator": "auto",
+      "human_review_notes": ""
+    },
+    "content": {
+      "research_type": "empirical",
+      "argumentation_type": "empirical",
+      "math_density": "none",
+      "figure_dependency": "none",
+      "section_boundaries": {}
+    },
+    "quality": {
+      "citation_depth": "medium",
+      "argument_complexity": "low",
+      "innovation_level": "significant_improvement",
+      "paper_quality_grade": "A"
+    },
+    "source": {
+      "database": "arxiv",
+      "publication_date": "2022-08",
+      "license_type": "CC BY",
+      "is_preprint": true
+    },
+    "decontamination": {
+      "risk_level": "high_risk",
+      "gpt4_cutoff_safe": false,
+      "gpt4o_cutoff_safe": false,
+      "claude_cutoff_safe": fa

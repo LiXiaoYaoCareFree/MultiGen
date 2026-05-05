@@ -11,10 +11,6 @@ mooc-manus/
 ├── api/              # 后端 API 服务（FastAPI）
 ├── ui/               # 前端服务（Next.js）
 ├── sandbox/          # 沙箱服务（Ubuntu + Chrome + VNC）
-├── nginx/            # Nginx 网关配置
-│   ├── nginx.conf
-│   └── conf.d/
-│       └── default.conf
 ├── docker-compose.yml
 ├── .env              # 环境变量配置（需自行创建）
 └── README.md
@@ -41,7 +37,9 @@ mooc-manus/
 
    # 可选修改
    POSTGRES_PASSWORD=postgres                   # 数据库密码
-   NGINX_PORT=8088                              # 对外访问端口
+   UI_PORT=3000                                 # 前端端口
+   API_PORT=8000                                # 后端端口
+   SANDBOX_PORT=8080                            # 沙箱端口（调试/排查可用）
    ```
 
 2. **配置 AI 模型**
@@ -63,43 +61,34 @@ mooc-manus/
 
 4. **访问系统**
 
-   打开浏览器访问 `http://localhost:8088`（或按 `.env` 的 `NGINX_PORT` 调整端口）
+   打开浏览器访问 `http://localhost:3000`（或按 `.env` 的 `UI_PORT` 调整端口）
 
 ### 服务架构
 
 ```
-                    ┌─────────────┐
-     Port 8088      │   Nginx     │
-   ─────────────────►  (Gateway)  │
-                    └──────┬──────┘
-                           │
-              ┌────────────┴────────────┐
-              │ /                       │ /api
-              ▼                         ▼
-       ┌─────────────┐          ┌─────────────┐
-       │  Next.js UI │          │  FastAPI     │
-       │  (Port 3000)│          │  (Port 8000) │
-       └─────────────┘          └──────┬──────┘
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    │                  │                   │
-                    ▼                  ▼                   ▼
-             ┌───────────┐     ┌───────────┐       ┌───────────┐
-             │ PostgreSQL│     │   Redis   │       │  Sandbox  │
-             │(Port 5432)│     │(Port 6379)│       │ (VNC/HTTP)│
-             └───────────┘     └───────────┘       └───────────┘
+       ┌─────────────┐        API调用         ┌─────────────┐
+       │  Next.js UI │ ─────────────────────► │   FastAPI   │
+       │  (Port 3000)│   http://localhost:8000/api (CORS)   │
+       └─────────────┘                        └──────┬──────┘
+                                                     │
+                                  ┌──────────────────┼──────────────────┐
+                                  │                  │                  │
+                                  ▼                  ▼                  ▼
+                           ┌───────────┐      ┌───────────┐      ┌───────────┐
+                           │ PostgreSQL│      │   Redis   │      │  Sandbox  │
+                           │(Port 5432)│      │(Port 6379)│      │ (Port 8080)│
+                           └───────────┘      └───────────┘      └───────────┘
 ```
 
 ### 容器列表
 
 | 容器名称 | 服务 | 说明 |
 |---------|------|------|
-| manus-nginx | Nginx | 反向代理网关，唯一对外暴露端口 |
-| manus-ui | Next.js | 前端 UI 服务 |
-| manus-api | FastAPI | 后端 API 服务 |
-| manus-postgres | PostgreSQL | 数据库 |
-| manus-redis | Redis | 缓存 |
-| manus-sandbox | Sandbox | 沙箱环境（Chrome + VNC） |
+| multigen-ui | Next.js | 前端 UI 服务（对外端口 `3000`） |
+| multigen-api | FastAPI | 后端 API 服务（对外端口 `8000`） |
+| multigen-postgres | PostgreSQL | 数据库 |
+| multigen-redis | Redis | 缓存 |
+| multigen-sandbox | Sandbox | 沙箱环境（对外端口 `8080`） |
 
 ### 常用命令
 
@@ -112,11 +101,11 @@ docker compose ps
 
 # 查看服务日志
 docker compose logs -f              # 所有服务
-docker compose logs -f manus-api    # 仅 API 服务
-docker compose logs -f manus-ui     # 仅 UI 服务
+docker compose logs -f multigen-api # 仅 API 服务
+docker compose logs -f multigen-ui  # 仅 UI 服务
 
 # 重启单个服务
-docker compose restart manus-api
+docker compose restart multigen-api
 
 # 停止所有服务
 docker compose down
@@ -125,20 +114,11 @@ docker compose down
 docker compose down -v
 ```
 
-### 启用 HTTPS
+### 本地直连说明（无 Nginx）
 
-1. 将 SSL 证书放入 `nginx/ssl/` 目录：
-   - `fullchain.pem`（证书链）
-   - `privkey.pem`（私钥）
-
-2. 修改 `nginx/conf.d/default.conf`，添加/启用 `listen 443 ssl` 的 server 配置并指向证书路径
-
-3. 修改 `docker-compose.yml`，取消 443 端口映射注释
-
-4. 重启 Nginx：
-   ```bash
-   docker compose restart manus-nginx
-   ```
+- UI：`http://localhost:${UI_PORT:-3000}`
+- API：`http://localhost:${API_PORT:-8000}/api/status`
+- Sandbox：`http://localhost:${SANDBOX_PORT:-8080}`
 
 ## 本地开发
 
