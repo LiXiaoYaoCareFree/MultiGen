@@ -33,6 +33,27 @@ Out of the box, MultiGen can browse the web, run shell commands, generate images
 
 ---
 
+> ## 🚨 Production / Online Deployment — Use the `online` Branch
+>
+> **For any production or online deployment, you MUST use the [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) branch — not `master`.**
+>
+> The `online` branch contains the battle-tested, production-ready code with the latest hotfixes, performance tuning, and deployment configuration verified in real-world environments. The `master` branch is for development and may contain unstable changes.
+>
+> ```bash
+> # Clone the production branch
+> git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+> cd MultiGen
+> docker compose up -d --build
+> ```
+>
+> Keep your deployment in sync by pulling from `online` only:
+>
+> ```bash
+> git fetch origin online && git checkout online && git pull origin online
+> ```
+
+---
+
 ## 🎯 Key Features
 
 | | |
@@ -176,9 +197,15 @@ Out of the box, MultiGen can browse the web, run shell commands, generate images
 
 ### 1. Clone
 
+> ⚠️ **For online / production deployments, always clone the `online` branch — it is the only branch verified for production use.** The `master` branch is for development.
+
 ```bash
-git clone https://github.com/your-org/multigen.git
-cd multigen
+# ✅ Production / online deployment (recommended)
+git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+cd MultiGen
+
+# For local development only — use master
+# git clone https://github.com/LiXiaoYaoCareFree/MultiGen.git
 ```
 
 ### 2. Configure environment

@@ -33,6 +33,27 @@
 
 ---
 
+> ## 🚨 线上 / 生产环境部署 —— 请使用 `online` 分支
+>
+> **任何线上或生产环境部署，必须使用 [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) 分支的代码，而不是 `master`。**
+>
+> `online` 分支是经过线上环境长期验证的稳定版本，包含最新的线上修复、性能调优与部署配置；`master` 分支用于日常开发，可能包含未稳定的改动，请勿直接用于生产。
+>
+> ```bash
+> # 克隆线上分支
+> git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+> cd MultiGen
+> docker compose up -d --build
+> ```
+>
+> 后续更新时也请仅从 `online` 分支拉取：
+>
+> ```bash
+> git fetch origin online && git checkout online && git pull origin online
+> ```
+
+---
+
 ## 🎯 核心特性
 
 | | |
@@ -176,9 +197,15 @@
 
 ### 1. 克隆仓库
 
+> ⚠️ **线上 / 生产环境部署，请务必克隆 `online` 分支 —— 它是唯一经过线上验证的稳定分支。** `master` 分支仅用于开发。
+
 ```bash
-git clone https://github.com/your-org/multigen.git
-cd multigen
+# ✅ 线上 / 生产部署（推荐）
+git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+cd MultiGen
+
+# 仅本地开发时才使用 master 分支
+# git clone https://github.com/LiXiaoYaoCareFree/MultiGen.git
 ```
 
 ### 2. 配置环境变量
