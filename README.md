@@ -4,6 +4,25 @@ English | [中文](./README.zh-CN.md)
 
 MultiGen is a general-purpose AI Agent system designed for fully private deployments. It connects Agents/Tools via A2A + MCP, and supports running built-in tools and operations inside a sandbox.
 
+> ## 🚨 Production / Online Deployment — Use the `online` Branch
+>
+> **You are reading the README of the [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) branch — this is the only branch that should be used for online / production deployment.**
+>
+> The `online` branch contains the battle-tested, production-ready code with the latest hotfixes, performance tuning, and deployment configuration verified in real-world environments. The `master` branch is for development and may contain unstable changes — **do NOT deploy from `master` to production.**
+>
+> ```bash
+> # ✅ Production / online deployment (recommended)
+> git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+> cd MultiGen
+> docker compose up -d --build
+> ```
+>
+> Keep your deployment in sync by pulling from `online` only:
+>
+> ```bash
+> git fetch origin online && git checkout online && git pull origin online
+> ```
+
 ## Screenshots
 
 <p align="center">
@@ -64,6 +83,15 @@ mooc-manus/
 - Docker Compose >= 2.0
 
 ### One-command Deployment
+
+> ⚠️ **For any online / production deployment, always clone the `online` branch — it is the only branch verified for production use.**
+
+0. **Clone the `online` branch**
+
+   ```bash
+   git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+   cd MultiGen
+   ```
 
 1. **Configure environment variables**
 

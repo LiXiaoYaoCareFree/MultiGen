@@ -4,6 +4,25 @@
 
 MultiGen 是一个通用的 AI Agent 系统，支持完全私有化部署，使用 A2A + MCP 连接 Agent/Tool，同时支持在沙箱中运行各种内置工具和操作。
 
+> ## 🚨 线上 / 生产环境部署 —— 请使用 `online` 分支
+>
+> **当前 README 来自 [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) 分支 —— 这是唯一可用于线上 / 生产环境部署的分支。**
+>
+> `online` 分支是经过线上环境长期验证的稳定版本，包含最新的线上修复、性能调优与部署配置；`master` 分支用于日常开发，可能包含未稳定的改动，**请勿直接用于生产环境。**
+>
+> ```bash
+> # ✅ 线上 / 生产部署（推荐）
+> git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+> cd MultiGen
+> docker compose up -d --build
+> ```
+>
+> 后续更新时也请仅从 `online` 分支拉取：
+>
+> ```bash
+> git fetch origin online && git checkout online && git pull origin online
+> ```
+
 ## 项目结构
 
 ```
@@ -28,6 +47,15 @@ mooc-manus/
 - Docker Compose >= 2.0
 
 ### 一键部署
+
+> ⚠️ **线上 / 生产环境部署，请务必克隆 `online` 分支 —— 它是唯一经过线上验证的稳定分支。**
+
+0. **克隆 `online` 分支**
+
+   ```bash
+   git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+   cd MultiGen
+   ```
 
 1. **配置环境变量**
 
