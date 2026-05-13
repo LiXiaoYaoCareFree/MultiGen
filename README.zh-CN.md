@@ -33,24 +33,34 @@
 
 ---
 
-> ## 🚨 线上 / 生产环境部署 —— 请使用 `online` 分支
+> ## 🚨 请根据部署场景选择正确的分支
 >
-> **任何线上或生产环境部署，必须使用 [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) 分支的代码，而不是 `master`。**
+> MultiGen 维护 **两个长期分支**，请根据使用场景选择：
 >
-> `online` 分支是经过线上环境长期验证的稳定版本，包含最新的线上修复、性能调优与部署配置；`master` 分支用于日常开发，可能包含未稳定的改动，请勿直接用于生产。
+> | 场景 | 分支 | 用途 |
+> |---|---|---|
+> | 🖥️ **本地 Docker 部署** | [`master`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/master) | 本地一键 Docker 部署、功能体验、二次开发、贡献代码 |
+> | 🌐 **线上 / 生产环境部署** | [`online`](https://github.com/LiXiaoYaoCareFree/MultiGen/tree/online) | 公网 / 生产环境 —— 经过线上验证，包含线上修复与部署配置 |
+>
+> **本地 Docker 部署（当前 `master` 分支）：**
 >
 > ```bash
-> # 克隆线上分支
+> # 🖥️ 本地 Docker 部署 —— 使用 master 分支
+> git clone https://github.com/LiXiaoYaoCareFree/MultiGen.git
+> cd MultiGen
+> docker compose up -d --build
+> ```
+>
+> **线上 / 生产环境部署：**
+>
+> ```bash
+> # 🌐 线上 / 生产部署 —— 使用 online 分支
 > git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
 > cd MultiGen
 > docker compose up -d --build
 > ```
 >
-> 后续更新时也请仅从 `online` 分支拉取：
->
-> ```bash
-> git fetch origin online && git checkout online && git pull origin online
-> ```
+> ⚠️ **请勿将 `master` 直接部署到公网 / 生产环境** —— 只有 `online` 经过线上验证。生产环境后续更新也请仅从 `online` 分支拉取。
 
 ---
 
@@ -197,15 +207,18 @@
 
 ### 1. 克隆仓库
 
-> ⚠️ **线上 / 生产环境部署，请务必克隆 `online` 分支 —— 它是唯一经过线上验证的稳定分支。** `master` 分支仅用于开发。
+> 💡 **请根据部署场景选择正确的分支：**
+> - 🖥️ **本地 Docker 部署** → 使用 `master`（当前分支）
+> - 🌐 **线上 / 生产环境部署** → 使用 `online`
 
 ```bash
-# ✅ 线上 / 生产部署（推荐）
-git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+# 🖥️ 本地 Docker 部署 —— 使用 master（默认分支）
+git clone https://github.com/LiXiaoYaoCareFree/MultiGen.git
 cd MultiGen
 
-# 仅本地开发时才使用 master 分支
-# git clone https://github.com/LiXiaoYaoCareFree/MultiGen.git
+# 🌐 线上 / 生产部署请改用 online 分支
+# git clone -b online https://github.com/LiXiaoYaoCareFree/MultiGen.git
+# cd MultiGen
 ```
 
 ### 2. 配置环境变量
