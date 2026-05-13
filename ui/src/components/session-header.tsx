@@ -99,18 +99,17 @@ export function SessionHeader({
 
   // 对相同 filepath 的文件进行去重，保留最新的（数组中最后一个）
   const uniqueFileList = useMemo(() => {
-    return fileList.reduce((acc, file) => {
+    // 倒序遍历保留最后一个（最新的）
+    const map = new Map<string, SessionFile>()
+    for (let i = fileList.length - 1; i >= 0; i--) {
+      const file = fileList[i]
       const key = file.filepath || file.filename
-      const existingIndex = acc.findIndex(f => (f.filepath || f.filename) === key)
-
-      if (existingIndex >= 0) {
-        acc[existingIndex] = file
-      } else {
-        acc.push(file)
+      if (!map.has(key)) {
+        map.set(key, file)
       }
-
-      return acc
-    }, [] as SessionFile[])
+    }
+    // 恢复原来的顺序（可选）
+    return Array.from(map.values()).reverse()
   }, [fileList])
 
   const buildFileTree = useCallback((items: SessionFile[]): FileTreeNode => {

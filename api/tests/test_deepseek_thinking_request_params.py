@@ -81,8 +81,10 @@ def test_deepseek_v4_flash_enables_thinking_flags() -> None:
 
     kwargs = fake_client.chat.completions.last_kwargs
     assert kwargs is not None
-    assert kwargs.get("reasoning_effort") == "high"
-    assert kwargs.get("extra_body") == {"thinking": {"type": "enabled"}}
+    assert kwargs.get("extra_body") == {
+        "thinking": {"type": "enabled"},
+        "reasoning_effort": "high"
+    }
     assert "temperature" not in kwargs
 
 

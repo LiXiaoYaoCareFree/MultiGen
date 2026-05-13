@@ -89,7 +89,8 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_tool = A2ATool()
         self._file_storage = file_storage
         self._api_base_dir = Path(__file__).resolve().parents[3]
-        self._session_storage_dir = self._api_base_dir / "storage" / "sessions" / self._session_id
+        self._project_base_dir = Path(__file__).resolve().parents[4]
+        self._session_storage_dir = self._project_base_dir / "dialogue" / self._session_id
         self._pending_generated_files: Dict[str, File] = {}
         self._browser = browser
         self._flow = PlannerReActFlow(
@@ -197,8 +198,12 @@ class AgentTaskRunner(TaskRunner):
         return size
 
     def _resolve_session_storage_path(self, source_path: str) -> Path:
-        """将沙箱/本地存储路径映射到会话本地目录，保持原有层级结构。"""
+        """将沙箱/本地存储路径映射到会话本地目录，保持对话项目目录结构。"""
         normalized = (source_path or "").replace("\\", "/").strip()
+        for prefix in ("/home/ubuntu/", "/workspace/", "/app/"):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
         if normalized.startswith("/"):
             normalized = normalized[1:]
         parts = [part for part in normalized.split("/") if part not in {"", ".", ".."}]
@@ -468,6 +473,67 @@ class AgentTaskRunner(TaskRunner):
                         event.tool_content = ShellToolContent(
                             console=(shell_result.data or {}).get("console_records", [])
                         )
+                        
+                        # 尝试将 shell 中创建的文件同步到存储，为了简单可以同步当前路径下的或者基于结果解析（可以先不用，目前主要修 file/mcp 工具的文件生成没落盘的问题，或者是落盘路径不对的问题）
+                        
+                        # 从 shell_result 解析可能生成的文件名并同步
+                        if hasattr(shell_result, "data") and isinstance(shell_result.data, dict):
+                            console_records = shell_result.data.get("console_records", [])
+                            # 尝试解析终端输出中可能的文件名并尝试下载，不报错
+                            all_output = "\n".join(record.get("content", "") for record in console_records)
+                            possible_files = self._extract_referenced_filenames(all_output)
+                            
+                            try:
+                                # 尝试通过 ls 获取当前目录的文件
+                                ls_result = await self._sandbox.execute_command(
+                                    session_id=event.function_args["session_id"],
+                                    command="ls -1",
+                                )
+                                if hasattr(ls_result, "data") and isinstance(ls_result.data, dict):
+                                    ls_output = ls_result.data.get("console_records", [])
+                                    ls_text = "\n".join(r.get("content", "") for r in ls_output)
+                                    for line in ls_text.split("\n"):
+                                        line = line.strip()
+                                        if line and not line.startswith("/") and not line.startswith("total "):
+                                            possible_files.append(line)
+                            except Exception:
+                                pass
+                            
+                            # 去重并尝试同步
+                            possible_files = list(dict.fromkeys(possible_files))
+                            synced_files = []
+                            for filename in possible_files:
+                                try:
+                                    # 检查文件是否存在于沙箱
+                                    # 只有实际存在且是文件才同步
+                                    check_res = await self._sandbox.execute_command(
+                                        session_id=event.function_args["session_id"],
+                                        command=f"test -f '{filename}' && echo 'EXISTS'",
+                                    )
+                                    if hasattr(check_res, "data") and isinstance(check_res.data, dict):
+                                        check_output = "\n".join(r.get("content", "") for r in check_res.data.get("console_records", []))
+                                        if "EXISTS" in check_output:
+                                            # TODO: 注意 sandbox download_file 可能需要绝对路径，如果只给 filename 会从 sandbox root 下载，这里需要 sandbox CWD 知识
+                                            # 但可以尝试以 CWD 相对路径下载
+                                            pwd_res = await self._sandbox.execute_command(
+                                                session_id=event.function_args["session_id"],
+                                                command="pwd",
+                                            )
+                                            pwd = "/workspace"
+                                            if hasattr(pwd_res, "data") and isinstance(pwd_res.data, dict):
+                                                pwd_output = "\n".join(r.get("content", "") for r in pwd_res.data.get("console_records", [])).strip()
+                                                if pwd_output and pwd_output.startswith("/"):
+                                                    pwd = pwd_output
+                                                    
+                                            abs_path = f"{pwd}/{filename}" if not filename.startswith("/") else filename
+                                            synced_file = await self._sync_file_to_storage(abs_path)
+                                            if synced_file:
+                                                synced_files.append(synced_file)
+                                except Exception:
+                                    pass
+                            
+                            if synced_files:
+                                self._remember_generated_files(synced_files)
                     else:
                         event.tool_content = ShellToolContent(console="(No console)")
                 elif event.tool_name == "file":
@@ -479,7 +545,9 @@ class AgentTaskRunner(TaskRunner):
                             file_content: str = (file_read_result.data or {}).get("content", "")
                             event.tool_content = FileToolContent(content=file_content)
                         elif event.function_name in {"write_file", "replace_in_file"}:
-                            await self._sync_file_to_storage(filepath)
+                            synced_file = await self._sync_file_to_storage(filepath)
+                            if synced_file:
+                                self._remember_generated_files([synced_file])
                         elif event.function_name == "delete_file":
                             async with self._uow:
                                 file = await self._uow.session.get_file_by_path(self._session_id, filepath)
@@ -494,9 +562,10 @@ class AgentTaskRunner(TaskRunner):
                         # 7.如果结果包含data则提取data
                         if hasattr(event.function_result, "data") and event.function_result.data:
                             logger.info(f"MCP/A2A工具调用结果: {event.function_result.data}")
-                            event.tool_content = MCPToolContent(result=event.function_result.data) \
+                            result_data = event.function_result.data
+                            event.tool_content = MCPToolContent(result=result_data) \
                                 if event.tool_name == "mcp" \
-                                else A2AToolContent(a2a_result=event.function_result.data)
+                                else A2AToolContent(a2a_result=result_data)
                         elif hasattr(event.function_result, "success") and event.function_result.success:
                             # 8.mcp/a2a工具调用正常，但是无结果产生
                             logger.info(f"MCP/A2A工具调用成功返回，但无结果: {event.function_result}")
@@ -509,9 +578,16 @@ class AgentTaskRunner(TaskRunner):
                         else:
                             # 9.其他情况将结果转换成字符串进行传递
                             logger.info(f"MCP/A2A工具额记过: {event.function_result}")
-                            event.tool_content = MCPToolContent(result=str(event.function_result)) \
+                            result_data = str(event.function_result)
+                            event.tool_content = MCPToolContent(result=result_data) \
                                 if event.tool_name == "mcp" \
-                                else A2AToolContent(a2a_result=str(event.function_result))
+                                else A2AToolContent(a2a_result=result_data)
+                        
+                        # 尝试将 mcp 中返回的文件同步到存储
+                        if result_data:
+                            synced_files = await self._sync_result_storage_files(result_data)
+                            if synced_files:
+                                self._remember_generated_files(synced_files)
                     else:
                         logger.warning("MCP/A2A工具调用结果未发现")
                         event.tool_content = MCPToolContent(result="(MCP工具无可用结果)") \

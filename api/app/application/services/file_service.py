@@ -1,4 +1,4 @@
-from typing import Tuple, BinaryIO, Callable
+from typing import Tuple, BinaryIO, Callable, Optional
 
 from fastapi import UploadFile
 
@@ -21,8 +21,21 @@ class FileService:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
+    @staticmethod
+    def _normalize_relative_path(relative_path: Optional[str], fallback_filename: str) -> str:
+        if not relative_path:
+            return fallback_filename
+        normalized = relative_path.replace("\\", "/").strip()
+        if normalized.startswith("/"):
+            normalized = normalized[1:]
+        parts = [part for part in normalized.split("/") if part not in {"", ".", ".."}]
+        if not parts:
+            return fallback_filename
+        return "/".join(parts)
+
+    async def upload_file(self, upload_file: UploadFile, relative_path: Optional[str] = None) -> File:
         """将传递的文件上传到腾讯云cos并记录上传数据"""
+        upload_file.filename = self._normalize_relative_path(relative_path, upload_file.filename or "upload")
         return await self.file_storage.upload_file(upload_file=upload_file)
 
     async def get_file_info(self, file_id: str) -> File:

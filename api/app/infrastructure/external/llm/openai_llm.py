@@ -243,8 +243,11 @@ class OpenAILLM(LLM):
                 "timeout": self._timeout,
             }
             if self._is_deepseek_reasoning_model():
-                request_kwargs["reasoning_effort"] = "high"
-                request_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+                # reasoning_effort 和 thinking 都需要放在 top level，openai sdk 的 extra_body 可以做到这一点
+                request_kwargs["extra_body"] = {
+                    "thinking": {"type": "enabled"},
+                    "reasoning_effort": "high"
+                }
             else:
                 request_kwargs["temperature"] = self._temperature
 

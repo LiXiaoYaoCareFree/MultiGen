@@ -146,6 +146,7 @@ export type FileInfo = {
 export type FileUploadParams = {
   file: File;
   session_id?: string;
+  relative_path?: string;
 };
 
 // ==================== 会话模块类型 ====================

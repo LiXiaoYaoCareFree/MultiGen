@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     sandbox_https_proxy: Optional[str] = None
     sandbox_http_proxy: Optional[str] = None
     sandbox_no_proxy: Optional[str] = None
+    semantic_scholar_api_key: Optional[str] = None
 
     # 管理员配置
     admin_auth_required: bool = False

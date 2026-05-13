@@ -26,7 +26,12 @@ export const fileApi = {
    */
   uploadFile: async (params: FileUploadParams): Promise<FileInfo> => {
     const formData = new FormData();
-    formData.append("file", params.file);
+    if (params.relative_path) {
+      formData.append("file", params.file, params.relative_path);
+      formData.append("relative_path", params.relative_path);
+    } else {
+      formData.append("file", params.file);
+    }
     
     if (params.session_id) {
       formData.append("session_id", params.session_id);

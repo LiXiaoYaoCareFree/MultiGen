@@ -120,6 +120,8 @@ class DockerSandbox(Sandbox):
                     "NO_PROXY": settings.sandbox_no_proxy,
                 }
             }
+            if settings.semantic_scholar_api_key:
+                container_config["environment"]["SEMANTIC_SCHOLAR_API_KEY"] = settings.semantic_scholar_api_key
 
             # 5.判断是否传递了网络
             if settings.sandbox_network:

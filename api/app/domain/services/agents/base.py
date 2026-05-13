@@ -184,10 +184,8 @@ class BaseAgent(ABC):
                         # DeepSeek thinking + tool calls 要求回传 reasoning_content（官方文档要求）
                         reasoning_content = message.get("reasoning_content")
                         if self._is_deepseek_reasoning_model() and not self._has_valid_reasoning_content(reasoning_content):
-                            error = "DeepSeek工具调用响应缺少有效 reasoning_content"
-                            logger.error("%s: model=%s", error, self._llm.model_name)
-                            await asyncio.sleep(self._retry_interval)
-                            continue
+                            logger.warning("DeepSeek工具调用响应缺少有效 reasoning_content，已应用降级兜底: model=%s", self._llm.model_name)
+                            reasoning_content = "Thinking Process..."
                         filtered_message["reasoning_content"] = reasoning_content
                         filtered_message["tool_calls"] = message.get("tool_calls")
                         logger.info(
@@ -202,10 +200,8 @@ class BaseAgent(ABC):
                         # 非工具调用assistant若返回了reasoning_content，保留原样用于后续多轮回传。
                         filtered_message["reasoning_content"] = message.get("reasoning_content")
                     elif self._is_deepseek_reasoning_model() and self._request_contains_tool_results(messages):
-                        error = "DeepSeek工具轮次最终assistant响应缺少有效 reasoning_content"
-                        logger.error("%s: model=%s", error, self._llm.model_name)
-                        await asyncio.sleep(self._retry_interval)
-                        continue
+                        logger.warning("DeepSeek工具轮次最终assistant响应缺少有效 reasoning_content，已应用降级兜底: model=%s", self._llm.model_name)
+                        filtered_message["reasoning_content"] = "Thinking Process..."
                 else:
                     # 8.非AI消息则记录日志并存储message
                     logger.warning(f"LLM响应内容无法确认消息角色: {message.get('role')}")

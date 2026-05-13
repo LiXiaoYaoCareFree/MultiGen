@@ -1,11 +1,11 @@
 'use client'
 
-import {useState, useRef, forwardRef, useImperativeHandle} from 'react'
+import {useEffect, useState, useRef, forwardRef, useImperativeHandle} from 'react'
 import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, Paperclip, XCircle, Loader2, Pause} from 'lucide-react'
+import {ArrowUp, FileText, Paperclip, XCircle, Loader2, Pause, Folder} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {fileApi} from '@/lib/api/file'
 import type {FileInfo} from '@/lib/api/types'
@@ -37,7 +37,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const folderInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    useEffect(() => {
+      if (!folderInputRef.current) return
+      folderInputRef.current.setAttribute('webkitdirectory', '')
+      folderInputRef.current.setAttribute('directory', '')
+    }, [])
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value
@@ -56,8 +63,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       getFiles: () => files,
     }))
 
-    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFiles = event.target.files
+    const uploadSelectedFiles = async (selectedFiles: FileList) => {
       if (!selectedFiles || selectedFiles.length === 0) {
         return
       }
@@ -67,8 +73,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       try {
         const uploadPromises = Array.from(selectedFiles).map(async (file) => {
           try {
+            const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath || undefined
             const fileInfo = await fileApi.uploadFile({
               file,
+              ...(relativePath && { relative_path: relativePath }),
               ...(sessionId && { session_id: sessionId }),
             })
             return fileInfo
@@ -91,15 +99,37 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         toast.error('文件上传过程中发生错误')
       } finally {
         setUploading(false)
-        // 重置input，以便可以重复选择同一文件
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
+      }
+    }
+
+    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = event.target.files
+      if (!selectedFiles) {
+        return
+      }
+      await uploadSelectedFiles(selectedFiles)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+
+    const handleFolderSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = event.target.files
+      if (!selectedFiles) {
+        return
+      }
+      await uploadSelectedFiles(selectedFiles)
+      if (folderInputRef.current) {
+        folderInputRef.current.value = ''
       }
     }
 
     const handleUploadClick = () => {
       fileInputRef.current?.click()
+    }
+
+    const handleUploadFolderClick = () => {
+      folderInputRef.current?.click()
     }
 
     const handleRemoveFile = (fileId: string) => {
@@ -213,6 +243,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onChange={handleFileSelect}
             disabled={uploading}
           />
+          <input
+            ref={folderInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFolderSelect}
+            disabled={uploading}
+          />
           <Button
             variant="outline"
             className="rounded-full w-8 h-8 cursor-pointer"
@@ -224,6 +262,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             ) : (
               <Paperclip/>
             )}
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-full w-8 h-8 cursor-pointer"
+            onClick={handleUploadFolderClick}
+            disabled={uploading}
+            title="上传文件夹"
+          >
+            <Folder className="size-4" />
           </Button>
         </div>
         {/* 发送/暂停按钮 */}

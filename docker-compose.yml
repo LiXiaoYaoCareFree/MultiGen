@@ -47,6 +47,8 @@ services:
     image: multigen-sandbox
     container_name: multigen-sandbox
     restart: unless-stopped
+    environment:
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/api/supervisor/status"]
       interval: 10s

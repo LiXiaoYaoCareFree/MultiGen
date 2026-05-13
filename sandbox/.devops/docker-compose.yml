@@ -15,3 +15,5 @@ services:
     container_name: mooc_manus_sandbox_dev
     # 碰到错误则自动重启
     restart: always
+    environment:
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY:-}

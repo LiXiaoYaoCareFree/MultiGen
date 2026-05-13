@@ -2,7 +2,7 @@ import logging
 import mimetypes
 import urllib.parse
 
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, UploadFile, File, Depends, Form
 from starlette.responses import StreamingResponse
 
 from app.application.services.file_service import FileService
@@ -23,10 +23,11 @@ router = APIRouter(prefix="/files", tags=["文件模块"], dependencies=[Depends
 )
 async def upload_file(
         file: UploadFile = File(...),
+        relative_path: str | None = Form(default=None),
         file_service: FileService = Depends(get_file_service),
 ) -> Response[FileInfo]:
     """文件上传接口，传递文件返回文件的File信息"""
-    fileinfo = await file_service.upload_file(upload_file=file)
+    fileinfo = await file_service.upload_file(upload_file=file, relative_path=relative_path)
     return Response.success(
         msg="上传文件成功",
         data=fileinfo,

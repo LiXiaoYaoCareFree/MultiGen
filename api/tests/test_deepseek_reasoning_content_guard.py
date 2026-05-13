@@ -47,7 +47,7 @@ def test_detect_v4_flash_as_reasoning_model() -> None:
     assert agent._is_deepseek_reasoning_model() is True
 
 
-def test_raise_when_tool_call_without_reasoning_content() -> None:
+def test_drop_when_tool_call_without_reasoning_content() -> None:
     agent = _new_agent("deepseek-v4-flash")
     messages = [
         {"role": "system", "content": "s"},
@@ -58,8 +58,9 @@ def test_raise_when_tool_call_without_reasoning_content() -> None:
         },
         {"role": "tool", "tool_call_id": "call_1", "content": "{}"},
     ]
-    with pytest.raises(RuntimeError, match="reasoning_content"):
-        agent._build_llm_messages(messages)
+    llm_messages = agent._build_llm_messages(messages)
+    assert len(llm_messages) == 1
+    assert llm_messages[0]["role"] == "system"
 
 
 def test_keep_reasoning_content_when_no_tool_call() -> None:
@@ -96,7 +97,7 @@ def test_keep_reasoning_content_when_tool_call_chain_complete() -> None:
     assert llm_messages[2] == {"role": "tool", "tool_call_id": "call_1", "content": "{}"}
 
 
-def test_raise_when_tool_call_reasoning_content_is_empty() -> None:
+def test_drop_when_tool_call_reasoning_content_is_empty() -> None:
     agent = _new_agent("deepseek-v4-flash")
     messages = [
         {"role": "system", "content": "s"},
@@ -108,8 +109,9 @@ def test_raise_when_tool_call_reasoning_content_is_empty() -> None:
         },
         {"role": "tool", "tool_call_id": "call_1", "content": "{}"},
     ]
-    with pytest.raises(RuntimeError, match="reasoning_content"):
-        agent._build_llm_messages(messages)
+    llm_messages = agent._build_llm_messages(messages)
+    assert len(llm_messages) == 1
+    assert llm_messages[0]["role"] == "system"
 
 
 def test_keep_reasoning_content_for_final_assistant_in_tool_turn() -> None:
