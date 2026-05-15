@@ -81,6 +81,64 @@
 
 ## 📸 功能展示
 
+### 🔬 端到端研究工作流 —— *规划 · 执行 · 实时观察*
+
+<p align="center">
+  <img src="assets/image.png" alt="MultiGen 研究工作流 —— 会话历史、实时计划执行、沙箱预览" width="92%" />
+  <br/>
+  <em>一张截图，三层 MultiGen 同时在线：持久化的会话历史、实时流式的 Planner+ReAct 执行视图，以及沙箱"电脑"中正在渲染论文的浏览器。</em>
+</p>
+
+上图捕捉到 MultiGen 正在处理一个真实任务 —— *"分析 alphaxiv.org/abs/2505.18705 上的 AI-Researcher: Autonomous Scientific Innovation 论文"*，**一屏即可看到平台最具代表性的三大能力**：
+
+#### 🗂️ &nbsp;**1. 持久化的多会话工作区** *（左侧边栏）*
+
+每一次对话都是一个可完整回放的会话，数据持久化到 PostgreSQL，并同步至腾讯云 COS。截图中的会话列表已经覆盖了 MultiGen 开箱即用的大部分场景：
+
+| 截图中的会话 | 调用的工具链 |
+|---|---|
+| 📊 百度技术运营周记图表 | `browser` · `file` · `shell` |
+| 💻 在 GitHub 上发现 Java 相关项目 | `search` · `browser` |
+| 🧮 SQLite + FAISS 数据向量化 | `shell` · `file` |
+| 📚 GitHub 搜索 PDF 批量下载与合并 | `browser` · `file` · `shell` |
+| 🏯 深秋杭州法明寺图片搜索 | `search` · `image_generation` |
+| 📄 AI-Researcher 论文阅读 *（进行中）* | `browser` · `file` · `mcp` |
+| 🎙️ 文章配音 + 歌曲混音 | `qwen_tts` · `audio_mixing` |
+| 🧊 3D 宠物模型检索与渲染 | `model_3d` · `browser` |
+| 🧪 `autoresearcher` / `AI-Scientist` / `sibyl-research-system` 论文深读 | `browser` · `file` · `a2a` |
+| 🎬 可爱风格视频自动化生成流水线 | `volcano_image` · `volcano_video` · `video_concatenation` · `virtual_anchor` |
+
+> 所有会话在服务重启后仍可继续，并支持重新打开、分叉、逐步回放 —— 由 SQLAlchemy async + Alembic 迁移驱动。
+
+#### 🧠 &nbsp;**2. 实时流式的 Planner+ReAct 执行视图** *（中间主区域）*
+
+中间一栏通过 SSE 实时流式渲染智能体的思考过程，可以清晰看到双层架构的协同：
+
+1. **PlannerAgent** 解析用户目标并输出 JSON 计划 —— *访问链接 → 浏览网页 → 下载 PDF → 提取内容 → 总结归纳*。
+2. **ReActAgent** 依次拾取每个子步骤，进入"推理 → 调工具 → 观察 → 继续"的循环：
+   - ✅ `访问论文链接` —— `browser.goto(https://www.alphaxiv.org/abs/2505.18705)`
+   - ✅ `正在打开网页` —— `browser.snapshot()` 返回页面 DOM
+   - ✅ `正在浏览网页` —— 抽取标题、摘要、章节结构
+   - ✅ `正在下载文件` —— `browser.download()` 拉取 PDF
+   - ✅ `正在打开文件` —— `file.read(.../2505.18705.pdf)` 解析内容
+   - 🔄 *……ReAct 循环继续，直至最终输出论文综述*
+
+每一个绿色对勾都是一个有判别类型的事件（`plan` · `step` · `tool` · `message` · `done`），通过 `/api/sessions/{id}/chat` 实时推送 —— 事件定义见 `api/app/domain/models/event.py`，由 `api/app/domain/services/flows/planner_react.py` 中的 `PlannerReActFlow` 产出。
+
+#### 🖥️ &nbsp;**3. 智能体的"电脑" —— 沙箱实时预览** *（右侧 "limpps 的电脑"）*
+
+右侧面板**不是一张静态截图**，而是一个直通智能体隔离 Docker 沙箱的实时窗口。当 ReAct 循环在沙箱内驱动 Headless Chrome（Ubuntu + Chrome + VNC，端口 8080）时，你看到的画面就是智能体看到的画面：
+
+- 🌍 alphaxiv.org 论文页在沙箱浏览器中实时加载
+- 📑 PDF 预览呈现 *"Highlight of Key Insights"* 章节
+- 🔍 滚动 / 点击 / 抽取 等行为逐帧同步到前端
+
+这就是**完全透明的"Computer Use"** —— 模型可以浏览、点击、输入、下载，但所有动作都被防火墙隔离在一次性容器之内。你的宿主机不会被触碰，每一步操作都可观测、可审计。
+
+> 🛡️ **为什么这对私有化部署至关重要：** 模型永远拿不到你基础设施上的 Shell。每一次 `shell`、`browser`、`file` 工具调用都被代理到沙箱容器中，而容器可以随时销毁与重建。
+
+---
+
 ### 🌐 联网搜索与知识检索
 
 <p align="center">

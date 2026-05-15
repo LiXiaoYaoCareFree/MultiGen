@@ -81,6 +81,64 @@ Out of the box, MultiGen can browse the web, run shell commands, generate images
 
 ## 📸 Showcase
 
+### 🔬 End-to-End Research Workflow — *Plan · Execute · Watch*
+
+<p align="center">
+  <img src="assets/image.png" alt="MultiGen research workflow — session history, live plan execution, and sandbox preview" width="92%" />
+  <br/>
+  <em>One screen, three layers of MultiGen at work: persistent session history, a live Planner+ReAct execution stream, and the agent's sandbox computer rendering the paper in real time.</em>
+</p>
+
+The screenshot above captures MultiGen tackling a real task — *"Analyze the AI-Researcher: Autonomous Scientific Innovation paper at alphaxiv.org/abs/2505.18705"* — and showcases **three of the platform's most distinctive capabilities in a single view**:
+
+#### 🗂️ &nbsp;**1. Persistent multi-session workspace** *(left sidebar)*
+
+Every conversation is a fully replayable session, stored in PostgreSQL and synced to Tencent COS. The sidebar in the screenshot shows the breadth of tasks MultiGen handles out of the box:
+
+| Visible session | Tools exercised |
+|---|---|
+| 📊 Baidu tech-ops weekly charts | `browser` · `file` · `shell` |
+| 💻 GitHub Java project discovery | `search` · `browser` |
+| 🧮 SQLite + FAISS data vectorization | `shell` · `file` |
+| 📚 PDF batch download & merge from GitHub | `browser` · `file` · `shell` |
+| 🏯 Late-autumn Hangzhou Faming Temple image search | `search` · `image_generation` |
+| 📄 AI-Researcher paper reading *(active)* | `browser` · `file` · `mcp` |
+| 🎙️ Article voice-over + song audio mixing | `qwen_tts` · `audio_mixing` |
+| 🧊 3D pet model retrieval & rendering | `model_3d` · `browser` |
+| 🧪 `autoresearcher` / `AI-Scientist` / `sibyl-research-system` paper deep-dives | `browser` · `file` · `a2a` |
+| 🎬 Automated cute-video generation pipeline | `volcano_image` · `volcano_video` · `video_concatenation` · `virtual_anchor` |
+
+> Sessions persist across restarts and can be reopened, branched, or replayed step-by-step — powered by SQLAlchemy async + Alembic migrations.
+
+#### 🧠 &nbsp;**2. Live Planner+ReAct execution stream** *(center)*
+
+The center column streams the agent's reasoning in real time over SSE. For this task you can see the two-stage architecture cleanly:
+
+1. **PlannerAgent** parses the user goal and emits a JSON plan — *fetch URL → browse page → download PDF → extract content → summarize*.
+2. **ReActAgent** picks up each step and iteratively reasons → calls a tool → observes the result → continues:
+   - ✅ `访问论文链接` — `browser.goto(https://www.alphaxiv.org/abs/2505.18705)`
+   - ✅ `正在打开网页` — `browser.snapshot()` returning the page DOM
+   - ✅ `正在浏览网页` — extracting title, abstract, sections
+   - ✅ `正在下载文件` — `browser.download()` of the PDF
+   - ✅ `正在打开文件` — `file.read(.../2505.18705.pdf)` to ingest content
+   - 🔄 *...continues until the ReAct loop summarizes the paper*
+
+Every green check is a discriminated event (`plan` · `step` · `tool` · `message` · `done`) flowing through `/api/sessions/{id}/chat` — defined in `api/app/domain/models/event.py` and produced by `PlannerReActFlow` in `api/app/domain/services/flows/planner_react.py`.
+
+#### 🖥️ &nbsp;**3. The Agent's Computer — live sandbox preview** *(right pane: "limpps 的电脑")*
+
+The right pane is **not a static screenshot** — it's a live window into the agent's isolated Docker sandbox. As the ReAct loop drives the headless Chrome inside the sandbox (Ubuntu + Chrome + VNC, port 8080), you see exactly what the agent sees:
+
+- 🌍 The alphaxiv.org paper rendered inside the sandbox browser
+- 📑 The PDF preview with *"Highlight of Key Insights"* section in view
+- 🔍 Scroll / click / extract events mirrored frame-by-frame
+
+This is **full "computer use" transparency** — your model can browse, click, type, and download, but it's all firewalled inside a disposable container. Your host machine is never touched, and every action is observable and auditable.
+
+> 🛡️ **Why this matters for private deployment:** the model never gets a shell on your infrastructure. Every `shell`, `browser`, and `file` tool call is proxied to the sandbox container, which can be destroyed and rebuilt at will.
+
+---
+
 ### 🌐 Web Search & Knowledge Retrieval
 
 <p align="center">
