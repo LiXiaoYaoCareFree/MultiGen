@@ -169,3 +169,4 @@ docker-business-data-export-20260329-053350.tar.gz
 docker-business-data-export-20260329-053350/
 
 .local/*
+.DS_Store
