@@ -58,6 +58,12 @@ class MultimodalCore:
         self.qwen_voice_enrollment_model = os.getenv("QWEN_VOICE_ENROLLMENT_MODEL", "qwen-voice-enrollment").strip()
         self.qwen_voice_cloning_target_model = os.getenv("QWEN_VOICE_CLONING_TARGET_MODEL", "qwen3-tts-vc-2026-01-22").strip()
         self.qwen_voice_synthesis_model = os.getenv("QWEN_VOICE_SYNTHESIS_MODEL", self.qwen_voice_cloning_target_model).strip()
+        self.minimax_api_key = os.getenv("MINIMAX_API_KEY", "").strip()
+        self.minimax_group_id = os.getenv("MINIMAX_GROUP_ID", "").strip()
+        self.minimax_region = os.getenv("MINIMAX_REGION", "global_en").strip().lower()
+        self.minimax_base_url = os.getenv("MINIMAX_BASE_URL", "").strip()
+        self.minimax_voice_clone_model = os.getenv("MINIMAX_VOICE_CLONE_MODEL", "speech-2.8-hd").strip()
+        self.minimax_voice_synthesis_model = os.getenv("MINIMAX_VOICE_SYNTHESIS_MODEL", self.minimax_voice_clone_model).strip()
         self.face_detection_method = os.getenv("FACE_DETECTION_METHOD", "llm").strip().lower()
 
     @staticmethod
@@ -929,6 +935,120 @@ class MultimodalCore:
             ext = ".wav" if ".wav" in remote_audio else ".mp3"
             local_audio = await self._download_to(remote_audio, self.audios_dir, "audios", "voice_cloning", text, ext)
             return ToolResult(success=True, message="声音复刻成功", data={"audio_url": local_audio, "local_path": local_audio, "original_url": remote_audio, "voice_name": voice_name, "provider": "qwen-tts-voice-cloning"})
+        except Exception as e:
+            return ToolResult(success=False, message=f"声音复刻失败: {e}")
+
+    def _minimax_base_url(self) -> str:
+        if self.minimax_base_url:
+            return self.minimax_base_url.rstrip("/")
+        region_hosts = {
+            "global_en": "https://api.minimax.io",
+            "cn_zh": "https://api.minimaxi.com",
+        }
+        return region_hosts.get(self.minimax_region, region_hosts["global_en"])
+
+    def _minimax_endpoint(self, path: str) -> str:
+        url = f"{self._minimax_base_url()}/{path.lstrip('/')}"
+        if self.minimax_group_id:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}GroupId={self.minimax_group_id}"
+        return url
+
+    def _minimax_headers(self, json_content: bool = True) -> Dict[str, str]:
+        headers = {"Authorization": f"Bearer {self.minimax_api_key}"}
+        if json_content:
+            headers["Content-Type"] = "application/json"
+        return headers
+
+    async def _read_audio_bytes(self, audio_url: str) -> tuple[bytes, str]:
+        if audio_url.startswith("/storage/"):
+            fp = self._local_path(audio_url)
+            if not fp.exists():
+                raise FileNotFoundError(f"本地音频不存在: {audio_url}")
+            return fp.read_bytes(), fp.name
+        if audio_url.startswith("http"):
+            data = await self._download_bytes(audio_url, timeout=120)
+            name = os.path.basename(urlparse(audio_url).path) or "reference.mp3"
+            return data, name
+        fp = Path(audio_url)
+        if not fp.exists():
+            raise FileNotFoundError(f"音频不存在: {audio_url}")
+        return fp.read_bytes(), fp.name
+
+    async def _minimax_synthesize(self, text: str, voice_id: str, model: str, prefix: str) -> str:
+        payload = {
+            "model": model,
+            "text": text,
+            "voice_setting": {"voice_id": voice_id, "speed": 1.0, "vol": 1.0, "pitch": 0},
+            "audio_setting": {"format": "mp3", "sample_rate": 32000},
+        }
+        async with httpx.AsyncClient(timeout=180) as client:
+            resp = await client.post(self._minimax_endpoint("/v1/t2a_v2"), json=payload, headers=self._minimax_headers())
+            resp.raise_for_status()
+            data = resp.json()
+        base_resp = (data.get("base_resp") or {}) if isinstance(data, dict) else {}
+        if base_resp.get("status_code") not in (0, None):
+            raise RuntimeError(base_resp.get("status_msg") or f"status_code={base_resp.get('status_code')}")
+        audio_hex = ((data.get("data") or {}).get("audio")) if isinstance(data, dict) else None
+        if not audio_hex:
+            raise RuntimeError("语音合成返回为空")
+        filename = self._build_filename(prefix, text, ".mp3")
+        with open(self.audios_dir / filename, "wb") as f:
+            f.write(bytes.fromhex(audio_hex))
+        return self._storage_url("audios", filename)
+
+    async def minimax_voice_design(self, voice_description: str, text: str, model: Optional[str] = None) -> ToolResult:
+        try:
+            if not self.minimax_api_key:
+                return ToolResult(success=False, message="未配置 MINIMAX_API_KEY")
+            synthesis_model = (model or self.minimax_voice_synthesis_model).strip()
+            voice_id = f"vd{uuid.uuid4().hex[:12]}"
+            design_payload = {"prompt": voice_description, "preview_text": text, "voice_id": voice_id}
+            async with httpx.AsyncClient(timeout=120) as client:
+                resp = await client.post(self._minimax_endpoint("/v1/voice_design"), json=design_payload, headers=self._minimax_headers())
+                resp.raise_for_status()
+                data = resp.json()
+            base_resp = (data.get("base_resp") or {}) if isinstance(data, dict) else {}
+            if base_resp.get("status_code") not in (0, None):
+                return ToolResult(success=False, message=f"声音设计失败: {base_resp.get('status_msg') or base_resp.get('status_code')}", data=data)
+            designed_voice = (data.get("voice_id") if isinstance(data, dict) else None) or voice_id
+            audio_url = await self._minimax_synthesize(text, designed_voice, synthesis_model, "voice_design")
+            return ToolResult(success=True, message="声音设计成功", data={"audio_url": audio_url, "local_path": audio_url, "voice_id": designed_voice, "model": synthesis_model, "provider": "minimax-voice-design"})
+        except Exception as e:
+            return ToolResult(success=False, message=f"声音设计失败: {e}")
+
+    async def minimax_voice_cloning(self, reference_audio: str, text: str, model: Optional[str] = None) -> ToolResult:
+        try:
+            if not self.minimax_api_key:
+                return ToolResult(success=False, message="未配置 MINIMAX_API_KEY")
+            clone_model = (model or self.minimax_voice_clone_model).strip()
+            audio_bytes, audio_name = await self._read_audio_bytes(reference_audio)
+            async with httpx.AsyncClient(timeout=180) as client:
+                upload_resp = await client.post(
+                    self._minimax_endpoint("/v1/files/upload"),
+                    data={"purpose": "voice_clone"},
+                    files={"file": (audio_name, audio_bytes)},
+                    headers=self._minimax_headers(json_content=False),
+                )
+                upload_resp.raise_for_status()
+                upload_data = upload_resp.json()
+            upload_base = (upload_data.get("base_resp") or {}) if isinstance(upload_data, dict) else {}
+            if upload_base.get("status_code") not in (0, None):
+                return ToolResult(success=False, message=f"克隆音频上传失败: {upload_base.get('status_msg') or upload_base.get('status_code')}", data=upload_data)
+            file_id = ((upload_data.get("file") or {}).get("file_id")) if isinstance(upload_data, dict) else None
+            if not file_id:
+                return ToolResult(success=False, message="克隆音频上传返回为空", data=upload_data)
+            voice_id = f"vc{uuid.uuid4().hex[:12]}"
+            clone_payload = {"file_id": file_id, "voice_id": voice_id, "model": clone_model}
+            async with httpx.AsyncClient(timeout=120) as client:
+                clone_resp = await client.post(self._minimax_endpoint("/v1/voice_clone"), json=clone_payload, headers=self._minimax_headers())
+                clone_resp.raise_for_status()
+                clone_data = clone_resp.json()
+            clone_base = (clone_data.get("base_resp") or {}) if isinstance(clone_data, dict) else {}
+            if clone_base.get("status_code") not in (0, None):
+                return ToolResult(success=False, message=f"声音复刻失败: {clone_base.get('status_msg') or clone_base.get('status_code')}", data=clone_data)
+            audio_url = await self._minimax_synthesize(text, voice_id, clone_model, "voice_cloning")
+            return ToolResult(success=True, message="声音复刻成功", data={"audio_url": audio_url, "local_path": audio_url, "voice_id": voice_id, "model": clone_model, "provider": "minimax-voice-cloning"})
         except Exception as e:
             return ToolResult(success=False, message=f"声音复刻失败: {e}")
 

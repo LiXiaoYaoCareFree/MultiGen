@@ -601,6 +601,7 @@ class AgentTaskRunner(TaskRunner):
                     "model_3d",
                     "virtual_anchor",
                     "qwen_tts",
+                    "minimax_voice",
                     "audio_mixing",
                 ]:
                     result_payload: Any = None

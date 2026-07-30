@@ -21,6 +21,7 @@ from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.image_generation import ImageGenerationTool
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.message import MessageTool
+from app.domain.services.tools.minimax_voice import MiniMaxVoiceTool
 from app.domain.services.tools.model_3d_generation import Model3DGenerationTool
 from app.domain.services.tools.qwen_tts import QwenTTSTool
 from app.domain.services.tools.search import SearchTool
@@ -73,6 +74,7 @@ class PlannerReActFlow(BaseFlow):
             VideoConcatenationTool(),
             VirtualAnchorGenerationTool(),
             QwenTTSTool(),
+            MiniMaxVoiceTool(),
             AudioMixingTool(),
             mcp_tool,
             a2a_tool,
