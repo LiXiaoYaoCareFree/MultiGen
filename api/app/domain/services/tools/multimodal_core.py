@@ -18,6 +18,13 @@ from app.domain.models.tool_result import ToolResult
 
 
 class MultimodalCore:
+    # MiniMax music generation constraints
+    MINIMAX_MUSIC_OUTPUT_FORMATS = ("url", "hex")
+    MINIMAX_MUSIC_AUDIO_FORMATS = ("mp3", "wav", "pcm")
+    MINIMAX_MUSIC_STATUS_IN_PROGRESS = 1
+    MINIMAX_MUSIC_STATUS_COMPLETED = 2
+    MINIMAX_MUSIC_URL_TTL_HOURS = 24
+
     def __init__(self) -> None:
         self.base_dir = Path(__file__).resolve().parents[4]
         self.storage_dir = self.base_dir / "storage"
@@ -64,6 +71,10 @@ class MultimodalCore:
         self.minimax_base_url = os.getenv("MINIMAX_BASE_URL", "").strip()
         self.minimax_voice_clone_model = os.getenv("MINIMAX_VOICE_CLONE_MODEL", "speech-2.8-hd").strip()
         self.minimax_voice_synthesis_model = os.getenv("MINIMAX_VOICE_SYNTHESIS_MODEL", self.minimax_voice_clone_model).strip()
+        self.minimax_music_model = os.getenv("MINIMAX_MUSIC_MODEL", "music-3.0").strip()
+        self.minimax_music_output_format = os.getenv("MINIMAX_MUSIC_OUTPUT_FORMAT", "hex").strip().lower()
+        self.minimax_music_audio_format = os.getenv("MINIMAX_MUSIC_AUDIO_FORMAT", "mp3").strip().lower()
+        self.minimax_music_aigc_watermark = os.getenv("MINIMAX_MUSIC_AIGC_WATERMARK", "false").strip().lower() == "true"
         self.face_detection_method = os.getenv("FACE_DETECTION_METHOD", "llm").strip().lower()
 
     @staticmethod
@@ -1051,6 +1062,119 @@ class MultimodalCore:
             return ToolResult(success=True, message="声音复刻成功", data={"audio_url": audio_url, "local_path": audio_url, "voice_id": voice_id, "model": clone_model, "provider": "minimax-voice-cloning"})
         except Exception as e:
             return ToolResult(success=False, message=f"声音复刻失败: {e}")
+
+    def _minimax_music_payload(
+        self,
+        model: str,
+        prompt: Optional[str],
+        lyrics: Optional[str],
+        output_format: str,
+        audio_format: str,
+        is_instrumental: Optional[bool],
+        lyrics_optimizer: Optional[bool],
+    ) -> Dict[str, Any]:
+        """Build the /v1/music_generation request body; only `model` is mandatory."""
+        payload: Dict[str, Any] = {
+            "model": model,
+            "output_format": output_format,
+            # Streamed responses only carry hex chunks, so always request the
+            # non-streaming form and persist one complete file instead.
+            "stream": False,
+            "audio_setting": {"format": audio_format},
+        }
+        if prompt:
+            payload["prompt"] = prompt
+        if lyrics:
+            payload["lyrics"] = lyrics
+        if is_instrumental is not None:
+            payload["is_instrumental"] = is_instrumental
+        if lyrics_optimizer is not None:
+            payload["lyrics_optimizer"] = lyrics_optimizer
+        # `aigc_watermark` is only accepted by the cn_zh endpoint
+        if self.minimax_region == "cn_zh" and self.minimax_music_aigc_watermark:
+            payload["aigc_watermark"] = True
+        return payload
+
+    def _extract_minimax_music_audio(self, data: Dict[str, Any]) -> str:
+        """Validate a music generation response and return the completed audio payload."""
+        base_resp = (data.get("base_resp") or {}) if isinstance(data, dict) else {}
+        if base_resp.get("status_code") not in (0, None):
+            raise RuntimeError(base_resp.get("status_msg") or f"status_code={base_resp.get('status_code')}")
+        result = (data.get("data") or {}) if isinstance(data, dict) else {}
+        status = result.get("status")
+        if status == self.MINIMAX_MUSIC_STATUS_IN_PROGRESS:
+            raise RuntimeError("音乐仍在生成中，请稍后重试")
+        if status not in (self.MINIMAX_MUSIC_STATUS_COMPLETED, None):
+            raise RuntimeError(f"音乐生成未完成: status={status}")
+        audio = result.get("audio")
+        if not audio:
+            raise RuntimeError("音乐生成返回为空")
+        return audio
+
+    async def _store_minimax_music_audio(self, audio: str, output_format: str, audio_format: str, text: str) -> str:
+        """Persist a url- or hex-form music result into the local audio directory."""
+        ext = f".{audio_format}"
+        if output_format == "url":
+            return await self._download_to(audio, self.audios_dir, "audios", "music", text, ext)
+        return self._save_bytes_to(bytes.fromhex(audio), self.audios_dir, "audios", "music", text, ext)
+
+    async def generate_music(
+        self,
+        prompt: Optional[str] = None,
+        lyrics: Optional[str] = None,
+        model: Optional[str] = None,
+        output_format: Optional[str] = None,
+        audio_format: Optional[str] = None,
+        is_instrumental: Optional[bool] = None,
+        lyrics_optimizer: Optional[bool] = None,
+    ) -> ToolResult:
+        try:
+            if not self.minimax_api_key:
+                return ToolResult(success=False, message="未配置 MINIMAX_API_KEY")
+            if not prompt and not lyrics:
+                return ToolResult(success=False, message="prompt 与 lyrics 至少需要提供一个")
+            music_model = (model or self.minimax_music_model).strip()
+            resolved_output = (output_format or self.minimax_music_output_format or "hex").strip().lower()
+            if resolved_output not in self.MINIMAX_MUSIC_OUTPUT_FORMATS:
+                return ToolResult(success=False, message=f"不支持的返回格式: {resolved_output}，可选 {'/'.join(self.MINIMAX_MUSIC_OUTPUT_FORMATS)}")
+            resolved_audio = (audio_format or self.minimax_music_audio_format or "mp3").strip().lower()
+            if resolved_audio not in self.MINIMAX_MUSIC_AUDIO_FORMATS:
+                return ToolResult(success=False, message=f"不支持的音频格式: {resolved_audio}，可选 {'/'.join(self.MINIMAX_MUSIC_AUDIO_FORMATS)}")
+            payload = self._minimax_music_payload(
+                music_model,
+                prompt,
+                lyrics,
+                resolved_output,
+                resolved_audio,
+                is_instrumental,
+                lyrics_optimizer,
+            )
+            async with httpx.AsyncClient(timeout=300) as client:
+                resp = await client.post(
+                    self._minimax_endpoint("/v1/music_generation"),
+                    json=payload,
+                    headers=self._minimax_headers(),
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            audio = self._extract_minimax_music_audio(data)
+            audio_url = await self._store_minimax_music_audio(audio, resolved_output, resolved_audio, prompt or lyrics or "")
+            result_data: Dict[str, Any] = {
+                "audio_url": audio_url,
+                "local_path": audio_url,
+                "model": music_model,
+                "output_format": resolved_output,
+                "audio_format": resolved_audio,
+                "is_instrumental": bool(is_instrumental),
+                "provider": "minimax-music-generation",
+            }
+            if resolved_output == "url":
+                # The remote address expires, so keep it only for troubleshooting
+                result_data["original_url"] = audio
+                result_data["original_url_ttl_hours"] = self.MINIMAX_MUSIC_URL_TTL_HOURS
+            return ToolResult(success=True, message="音乐生成成功", data=result_data)
+        except Exception as e:
+            return ToolResult(success=False, message=f"音乐生成失败: {e}")
 
     async def concatenate_audio(self, audio_files: List[str], crossfade_duration: int = 200, silence_duration: int = 1200) -> ToolResult:
         try:

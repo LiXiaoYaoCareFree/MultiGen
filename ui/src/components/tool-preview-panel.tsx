@@ -55,6 +55,7 @@ function getCompactToolContent(tool: ToolEvent): unknown {
     'virtual_anchor',
     'qwen_tts',
     'minimax_voice',
+    'minimax_music',
     'audio_mixing',
   ])
   if (!multimodalToolNames.has(tool.name)) return tool.content
