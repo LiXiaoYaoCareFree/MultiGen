@@ -602,6 +602,7 @@ class AgentTaskRunner(TaskRunner):
                     "virtual_anchor",
                     "qwen_tts",
                     "minimax_voice",
+                    "minimax_music",
                     "audio_mixing",
                 ]:
                     result_payload: Any = None
